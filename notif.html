@@ -43,7 +43,7 @@
     let page = 1;
 
     async function fetchImages() {
-      const res = await fetch(`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=sort:score+-animated&pid=${page}`);
+      const res = await fetch(`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=sort:random+-animated&pid=${page}`);
       let json = await res.json();
       json = json.filter((x) => !x.file_url.includes('mp4')).filter((x) => x.width / x.height >= 1.4);
       if (!json.length) return await fetchImages();
