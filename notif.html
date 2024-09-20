@@ -13,6 +13,7 @@
 
   <script>
     let notificationsEnabled = true; // Flag to enable or disable notifications
+    let timerId; // To store the interval ID
 
     document.getElementById("toggleNotifications").addEventListener("click", function() {
       notificationsEnabled = !notificationsEnabled; // Toggle the flag
@@ -43,9 +44,10 @@
     let page = 1;
 
     async function fetchImages() {
-      const res = await fetch(`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=sort:random+-animated&pid=${page}`);
+      const res = await fetch(`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=order:random+kindred+gif&pid=${page}`);
       let json = await res.json();
-      json = json.filter((x) => !x.file_url.includes('mp4')).filter((x) => x.width / x.height >= 1.4);
+      // Only filter out videos, but no more ratio restriction
+      json = json.filter((x) => !x.file_url.includes('mp4'));
       if (!json.length) return await fetchImages();
       images.push(...json.map((x) => x.file_url));
       page++;
@@ -73,11 +75,33 @@
       document.getElementById('lastImage').src = imageURL;
     }
 
+    // Start notifications with a fixed interval
+    function startPingInterval() {
+      ping(); // Call immediately
+      timerId = setInterval(ping, 20000); // Set interval for every 20 seconds
+    }
+
+    // Clear the interval when the page is hidden
+    function stopPingInterval() {
+      clearInterval(timerId);
+    }
+
+    // Handle page visibility change
+    document.addEventListener('visibilitychange', function() {
+      if (document.visibilityState === 'visible') {
+        console.log("Page is visible again, resuming notifications...");
+        startPingInterval(); // Resume the notifications
+      } else {
+        console.log("Page is hidden, stopping notifications...");
+        stopPingInterval(); // Stop notifications
+      }
+    });
+
     // Request notification permission on page load
     requestNotificationPermission();
 
-    ping();
-    setInterval(ping, 20000);
+    // Start the initial notifications
+    startPingInterval();
   </script>
 </body>
 </html>
