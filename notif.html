@@ -8,7 +8,6 @@
 <body>
   <h1>Last Image Sent as Notification:</h1>
   <button id="toggleNotifications">Disable Notifications</button>
-  <!-- Image container where the last image will be displayed -->
   <img id="lastImage" src="" alt="Last notification image will appear here" style="max-width: 100%; height: auto;"/>
 
   <script>
@@ -56,39 +55,38 @@
         await fetchImages();
       }
       shuffle(images);
-      const imgData = images.shift(); // Get image data
+      const imgData = images.shift();
       const imgUrl = imgData.file_url;
-      const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`; // Construct the post URL
+      const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
 
       const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
       const res = await fetch(url);
       const icon = await res.blob();
       const imageURL = URL.createObjectURL(icon);
 
-      // Only send notification if notificationsEnabled and permission is granted
       if (notificationsEnabled && Notification.permission === "granted") {
-        const notification = new Notification('', { image: imageURL });
-
-        // Attach a click event listener to the notification
-        notification.onclick = function () {
-          window.open(postUrl, '_blank'); // Open the post in a new tab
-          notification.close(); // Close the notification on click
-        };
+        navigator.serviceWorker.ready.then(function(registration) {
+          registration.showNotification('New Image Available!', {
+            body: 'Check out the latest image!',
+            icon: 'icon.png',
+            image: imageURL,
+            data: {
+              url: postUrl // Pass the post URL for click handling
+            }
+          });
+        });
       }
 
-      // Update the image on the web page
       document.getElementById('lastImage').src = imageURL;
     }
 
     function startWorker() {
       if (typeof Worker !== "undefined") {
         if (worker == undefined) {
-          worker = new Worker('worker.js'); // Load the Web Worker
+          worker = new Worker('worker.js'); // Web Worker for 10-second interval
         }
-        // Start the worker with a 10-second interval
         worker.postMessage({ command: 'start', interval: 10000 });
 
-        // Listen for the "ping" message from the worker
         worker.onmessage = function (e) {
           if (e.data === 'ping') {
             ping();
@@ -108,7 +106,18 @@
     // Request notification permission on page load
     requestNotificationPermission();
 
-    // Start the notifications when the page loads
+    // Register service worker for background notifications
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(function(registration) {
+          console.log('Service Worker registered with scope:', registration.scope);
+        })
+        .catch(function(error) {
+          console.error('Service Worker registration failed:', error);
+        });
+    }
+
+    // Start the Web Worker for the 10-second ping
     startWorker();
 
     // Ensure the worker is stopped when the page is closed
