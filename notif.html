@@ -8,12 +8,14 @@
 <body>
   <h1>Last Image Sent as Notification:</h1>
   <button id="toggleNotifications">Disable Notifications</button>
+  <!-- Image container where the last image will be displayed -->
   <img id="lastImage" src="" alt="Last notification image will appear here" style="max-width: 100%; height: auto;"/>
 
   <script>
     let notificationsEnabled = true;
     const images = [];
     let page = 1;
+    let worker;
 
     document.getElementById("toggleNotifications").addEventListener("click", function () {
       notificationsEnabled = !notificationsEnabled;
@@ -49,73 +51,67 @@
       page++;
     }
 
-    async function sendNotification(imageData) {
-      const imgUrl = imageData.file_url;
-      const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imageData.id}`; // Construct the post URL
+    async function ping() {
+      if (images.length < 100) {
+        await fetchImages();
+      }
+      shuffle(images);
+      const imgData = images.shift(); // Get image data
+      const imgUrl = imgData.file_url;
+      const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`; // Construct the post URL
 
       const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
       const res = await fetch(url);
       const icon = await res.blob();
       const imageURL = URL.createObjectURL(icon);
 
-      // Send a notification
-      const notification = new Notification('', { image: imageURL });
-
-      // Attach a click event listener to the notification
-      notification.onclick = function () {
-        window.open(postUrl, '_blank'); // Open the post in a new tab
-        notification.close(); // Close the notification on click
-      };
-    }
-
-    async function ping() {
-      if (images.length < 100) {
-        await fetchImages();
-      }
-      shuffle(images);
-      const imgData = images.shift();
-
+      // Only send notification if notificationsEnabled and permission is granted
       if (notificationsEnabled && Notification.permission === "granted") {
-        await sendNotification(imgData);
-      }
+        const notification = new Notification('', { image: imageURL });
 
+        // Attach a click event listener to the notification
+        notification.onclick = function () {
+          window.open(postUrl, '_blank'); // Open the post in a new tab
+          notification.close(); // Close the notification on click
+        };
+      }
       // Update the image on the web page
-      document.getElementById('lastImage').src = imgData.file_url;
+      document.getElementById('lastImage').src = imageURL;
     }
 
-    // Register the service worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('worker.js').then(() => {
-        console.log('Service Worker registered');
-      }).catch(error => {
-        console.log('Service Worker registration failed:', error);
-      });
+    function startWorker() {
+      if (typeof Worker !== "undefined") {
+        if (worker == undefined) {
+          worker = new Worker('worker.js'); // Load the Web Worker
+        }
+        // Start the worker with a 10-second interval
+        worker.postMessage({ command: 'start', interval: 10000 });
+        // Listen for the "ping" message from the worker
+        worker.onmessage = function (e) {
+          if (e.data === 'ping') {
+            ping();
+          }
+        };
+      } else {
+        console.log("Web Workers are not supported in this browser.");
+      }
+    }
+
+    function stopWorker() {
+      if (worker) {
+        worker.postMessage({ command: 'stop' });
+      }
     }
 
     // Request notification permission on page load
     requestNotificationPermission();
 
     // Start the notifications when the page loads
-    navigator.serviceWorker.ready.then(function (registration) {
-      registration.active.postMessage({ command: 'start', interval: 10000 }); // 10 seconds interval
-    });
+    startWorker();
 
-    // Listen for messages from the service worker
-    navigator.serviceWorker.onmessage = function (event) {
-      if (event.data === 'ping') {
-        ping();
-      }
-    };
-
-    // Stop the worker when the page is closed
+    // Ensure the worker is stopped when the page is closed
     window.onbeforeunload = function () {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(registrations => {
-          registrations.forEach(registration => {
-            registration.unregister();
-          });
-        });
-      }
+      stopWorker();
     };
   </script>
 </body>
