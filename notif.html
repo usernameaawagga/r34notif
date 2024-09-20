@@ -72,6 +72,7 @@
         // Attach a click event listener to the notification
         notification.onclick = function () {
           window.open(postUrl, '_blank'); // Open the post in a new tab
+          notification.close(); // Close the notification on click
         };
       }
 
@@ -84,8 +85,8 @@
         if (worker == undefined) {
           worker = new Worker('worker.js'); // Load the Web Worker
         }
-        // Start the worker with a 20-second interval
-        worker.postMessage({ command: 'start', interval: 20000 });
+        // Start the worker with a 10-second interval
+        worker.postMessage({ command: 'start', interval: 10000 });
 
         // Listen for the "ping" message from the worker
         worker.onmessage = function (e) {
