@@ -27,6 +27,8 @@ self.addEventListener('notificationclick', function(event) {
   
   const urlToOpen = event.notification.data.url; // Get the URL from notification data
 
+  console.log('Opening URL:', urlToOpen); // Debug log
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
       if (clientList.length > 0) {
