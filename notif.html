@@ -44,7 +44,7 @@
     let page = 1;
 
     async function fetchImages() {
-      const res = await fetch(`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=sort:random+kindred+gif&pid=${page}`);
+      const res = await fetch(`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=sort:random+kindred+-animated&pid=${page}`);
       let json = await res.json();
       // Only filter out videos, but no more ratio restriction
       json = json.filter((x) => !x.file_url.includes('mp4'));
