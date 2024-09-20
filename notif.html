@@ -12,12 +12,14 @@
   <img id="lastImage" src="" alt="Last notification image will appear here" style="max-width: 100%; height: auto;"/>
 
   <script>
-    let notificationsEnabled = true; // Flag to enable or disable notifications
-    let timerId; // To store the interval ID
+    let notificationsEnabled = true;
+    const images = [];
+    let page = 1;
+    let worker;
 
-    document.getElementById("toggleNotifications").addEventListener("click", function() {
-      notificationsEnabled = !notificationsEnabled; // Toggle the flag
-      this.innerText = notificationsEnabled ? 'Disable Notifications' : 'Enable Notifications'; // Update button text
+    document.getElementById("toggleNotifications").addEventListener("click", function () {
+      notificationsEnabled = !notificationsEnabled;
+      this.innerText = notificationsEnabled ? 'Disable Notifications' : 'Enable Notifications';
     });
 
     async function requestNotificationPermission() {
@@ -33,20 +35,16 @@
 
     function shuffle(array) {
       let currentIndex = array.length;
-      while (currentIndex != 0) {
+      while (currentIndex !== 0) {
         let randomIndex = Math.floor(Math.random() * currentIndex);
         currentIndex--;
         [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
       }
     }
 
-    const images = [];
-    let page = 1;
-
     async function fetchImages() {
       const res = await fetch(`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=sort:random+kindred+-animated&pid=${page}`);
       let json = await res.json();
-      // Only filter out videos, but no more ratio restriction
       json = json.filter((x) => !x.file_url.includes('mp4'));
       if (!json.length) return await fetchImages();
       images.push(...json.map((x) => x.file_url));
@@ -64,44 +62,49 @@
       const icon = await res.blob();
       const imageURL = URL.createObjectURL(icon);
 
-      // Only send a notification if notificationsEnabled is true and permission was granted
       if (notificationsEnabled && Notification.permission === "granted") {
-        new Notification('', {
-          image: imageURL,
-        });
+        new Notification('', { image: imageURL });
       }
 
       // Update the image on the web page
       document.getElementById('lastImage').src = imageURL;
     }
 
-    // Start notifications with a fixed interval
-    function startPingInterval() {
-      ping(); // Call immediately
-      timerId = setInterval(ping, 20000); // Set interval for every 20 seconds
-    }
+    function startWorker() {
+      if (typeof Worker !== "undefined") {
+        if (worker == undefined) {
+          worker = new Worker('worker.js'); // Load the Web Worker
+        }
+        // Start the worker with a 20-second interval
+        worker.postMessage({ command: 'start', interval: 20000 });
 
-    // Clear the interval when the page is hidden
-    function stopPingInterval() {
-      clearInterval(timerId);
-    }
-
-    // Handle page visibility change
-    document.addEventListener('visibilitychange', function() {
-      if (document.visibilityState === 'visible') {
-        console.log("Page is visible again, resuming notifications...");
-        startPingInterval(); // Resume the notifications
+        // Listen for the "ping" message from the worker
+        worker.onmessage = function (e) {
+          if (e.data === 'ping') {
+            ping();
+          }
+        };
       } else {
-        console.log("Page is hidden, stopping notifications...");
-        stopPingInterval(); // Stop notifications
+        console.log("Web Workers are not supported in this browser.");
       }
-    });
+    }
+
+    function stopWorker() {
+      if (worker) {
+        worker.postMessage({ command: 'stop' });
+      }
+    }
 
     // Request notification permission on page load
     requestNotificationPermission();
 
-    // Start the initial notifications
-    startPingInterval();
+    // Start the notifications when the page loads
+    startWorker();
+
+    // Ensure the worker is stopped when the page is closed
+    window.onbeforeunload = function () {
+      stopWorker();
+    };
   </script>
 </body>
 </html>
