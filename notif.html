@@ -50,35 +50,35 @@
       page++;
     }
 
-    async function ping() {
-      if (images.length < 100) {
-        await fetchImages();
-      }
-      shuffle(images);
-      const imgData = images.shift();
-      const imgUrl = imgData.file_url;
-      const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
+async function ping() {
+  if (images.length < 100) {
+    await fetchImages();
+  }
+  shuffle(images);
+  const imgData = images.shift();
+  const imgUrl = imgData.file_url;
+  const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`; // Create the post URL
 
-      const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
-      const res = await fetch(url);
-      const icon = await res.blob();
-      const imageURL = URL.createObjectURL(icon);
+  const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
+  const res = await fetch(url);
+  const icon = await res.blob();
+  const imageURL = URL.createObjectURL(icon);
 
-      if (notificationsEnabled && Notification.permission === "granted") {
-        navigator.serviceWorker.ready.then(function(registration) {
-          registration.showNotification('New Image Available!', {
-            body: 'Check out the latest image!',
-            icon: 'icon.png',
-            image: imageURL,
-            data: {
-              url: postUrl // Pass the post URL for click handling
-            }
-          });
-        });
-      }
+  if (notificationsEnabled && Notification.permission === "granted") {
+    navigator.serviceWorker.ready.then(function(registration) {
+      registration.showNotification('New Image Available!', {
+        body: 'Check out the latest image!',
+        icon: 'icon.png',
+        image: imageURL,
+        data: {
+          url: postUrl // Pass the post URL for click handling
+        }
+      });
+    });
+  }
 
-      document.getElementById('lastImage').src = imageURL;
-    }
+  document.getElementById('lastImage').src = imageURL;
+}
 
     function startWorker() {
       if (typeof Worker !== "undefined") {
