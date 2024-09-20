@@ -47,7 +47,7 @@
       let json = await res.json();
       json = json.filter((x) => !x.file_url.includes('mp4'));
       if (!json.length) return await fetchImages();
-      images.push(...json.map((x) => x.file_url));
+      images.push(...json);
       page++;
     }
 
@@ -56,14 +56,23 @@
         await fetchImages();
       }
       shuffle(images);
-      const img = images.shift();
-      const url = 'https://corsproxy.io/?' + encodeURIComponent(img);
+      const imgData = images.shift(); // Get image data
+      const imgUrl = imgData.file_url;
+      const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`; // Construct the post URL
+
+      const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
       const res = await fetch(url);
       const icon = await res.blob();
       const imageURL = URL.createObjectURL(icon);
 
+      // Only send notification if notificationsEnabled and permission is granted
       if (notificationsEnabled && Notification.permission === "granted") {
-        new Notification('', { image: imageURL });
+        const notification = new Notification('', { image: imageURL });
+
+        // Attach a click event listener to the notification
+        notification.onclick = function () {
+          window.open(postUrl, '_blank'); // Open the post in a new tab
+        };
       }
 
       // Update the image on the web page
