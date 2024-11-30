@@ -3,23 +3,45 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Image Notification and Display</title>
+  <title>Customizable Image Notifications</title>
 </head>
 <body>
   <h1>Last Image Sent as Notification:</h1>
   <button id="toggleNotifications">Disable Notifications</button>
-  <!-- Image container where the last image will be displayed -->
+  <div>
+    <label for="tagInput">Enter Tags:</label>
+    <input type="text" id="tagInput" placeholder="e.g., kindred, -animated*" />
+    <button id="updateTags">Update Tags</button>
+  </div>
+  <p>Current Tags: <span id="currentTags">sort:random kindred -animated*</span></p>
   <img id="lastImage" src="" alt="Last notification image will appear here" style="max-width: 100%; height: auto;"/>
 
   <script>
     let notificationsEnabled = true;
-    const images = [];
+    let tags = "sort:random kindred -animated*"; // Default tags
+    let images = [];
     let page = 1;
     let worker;
+
+    // Update displayed tags
+    function updateDisplayedTags() {
+      document.getElementById('currentTags').innerText = tags;
+    }
 
     document.getElementById("toggleNotifications").addEventListener("click", function () {
       notificationsEnabled = !notificationsEnabled;
       this.innerText = notificationsEnabled ? 'Disable Notifications' : 'Enable Notifications';
+    });
+
+    document.getElementById("updateTags").addEventListener("click", function () {
+      const userTags = document.getElementById("tagInput").value.trim();
+      if (userTags) {
+        tags = userTags;
+        images = []; // Clear existing images when tags change
+        page = 1; // Reset page count
+        updateDisplayedTags();
+        console.log("Tags updated to:", tags);
+      }
     });
 
     async function requestNotificationPermission() {
@@ -43,7 +65,8 @@
     }
 
     async function fetchImages() {
-      const res = await fetch(`https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=sort:random+kindred+-animated*+-fart*+-scat+-watersports*+-diaper*+-pee*+-poop+-multi*breast*+-feces*&pid=${page}`);
+      const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}&pid=${page}`;
+      const res = await fetch(apiUrl);
       let json = await res.json();
       json = json.filter((x) => !x.file_url.includes('mp4'));
       if (!json.length) return await fetchImages();
@@ -115,6 +138,9 @@
     window.onbeforeunload = function () {
       stopWorker();
     };
+
+    // Initialize displayed tags
+    updateDisplayedTags();
   </script>
 </body>
 </html>
