@@ -31,6 +31,9 @@
     <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
+  <!-- Force image button -->
+  <button id="forceImageButton">Force image</button>
+
   <img id="lastImage" src="" alt="Last image will appear here" />
 
   <script>
@@ -45,6 +48,7 @@
     let retries = 0;
     const maxRetries = 5;
     let isProcessing = false;
+    let timeoutId;
 
     function updateDisplayedTags() {
       const displayTags = tags.trim() ? `${tags}` : "None";
@@ -53,6 +57,22 @@
 
     function updateDisplayedInterval() {
       document.getElementById('currentInterval').innerText = interval / 1000;
+    }
+
+    // Debounced function to limit rapid tag updates
+    function debounce(func, delay) {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(func, delay);
+    }
+
+    // Update Tags function with debouncing
+    function updateTags() {
+      const userTags = document.getElementById("tagInput").value.trim();
+      tags = userTags === "" ? "-ai_generated -vore score:>=10" : userTags;
+      images = [];
+      page = 1;
+      updateDisplayedTags();
+      console.log("Tags updated to:", tags);
     }
 
     document.getElementById("toggleNotifications").addEventListener("click", function () {
@@ -66,19 +86,11 @@
     });
 
     document.getElementById("updateTags").addEventListener("click", function () {
-      const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags === "" ? "-ai_generated -vore score:>=10" : userTags;
-      images = [];
-      page = 1;
-      updateDisplayedTags();
-      console.log("Tags updated to:", tags);
+      debounce(updateTags, 500);
     });
 
-    document.getElementById("tagInput").addEventListener("keydown", function(event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        document.getElementById("updateTags").click();
-      }
+    document.getElementById("tagInput").addEventListener("input", function() {
+      debounce(updateTags, 500);
     });
 
     document.getElementById("intervalInput").addEventListener("keydown", function(event) {
@@ -200,6 +212,11 @@
       document.getElementById('lastImage').src = imageURL;
       isProcessing = false;
     }
+
+    // Force image button click handler
+    document.getElementById('forceImageButton').addEventListener('click', async function() {
+      await ping(); // Call ping as if it's triggered by the interval
+    });
 
     function startWorker() {
       if (typeof Worker !== "undefined") {
