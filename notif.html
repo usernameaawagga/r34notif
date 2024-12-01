@@ -19,7 +19,7 @@
   <button id="toggleNotifications">Enable</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <input type="text" id="tagInput" placeholder="-ai_generated score:>=10" />
+    <input type="text" id="tagInput" placeholder="-ai_generated -vore score:>=10" />
     <button id="updateTags">Update Tags</button>
   </div>
   <p>Current Tags: <span id="currentTags">None</span></p>
@@ -39,8 +39,8 @@
   <script>
     let notificationsEnabled = false;
     let tags = "-ai_generated -vore score:>=10";
-    const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*";
-    const impliedOrder = "sort:random";
+    // Combined implied tags and implied order into a single variable
+    const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
     let images = [];
     let page = 1;
     let worker;
@@ -68,6 +68,7 @@
     // Update Tags function with debouncing
     function updateTags() {
       const userTags = document.getElementById("tagInput").value.trim();
+      // Only update tags with user input, not the placeholder
       tags = userTags === "" ? "-ai_generated -vore score:>=10" : userTags;
       images = [];
       page = 1;
@@ -137,7 +138,7 @@
 
     async function fetchImages() {
       try {
-        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
+        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
         const res = await fetch(apiUrl);
         if (!res.ok) {
           console.error(`Failed to fetch images. HTTP status: ${res.status}`);
