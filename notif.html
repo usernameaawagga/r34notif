@@ -31,6 +31,8 @@
     <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
+  <button id="forceImage">Force Image</button>
+
   <img id="lastImage" src="" alt="Last image will appear here" />
 
   <script>
@@ -230,6 +232,10 @@
     window.onbeforeunload = function () {
       stopWorker();
     };
+
+    document.getElementById("forceImage").addEventListener("click", function () {
+      ping();
+    });
   </script>
 </body>
 </html>
