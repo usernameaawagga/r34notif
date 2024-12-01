@@ -202,13 +202,16 @@
       const res = await fetch(url);
       const icon = await res.blob();
       const imageURL = URL.createObjectURL(icon);
-      if (notificationsEnabled && Notification.permission === "granted") {
+
+      // Send notification even if notifications are not enabled (but permission is granted)
+      if (Notification.permission === "granted") {
         const notification = new Notification('', { image: imageURL });
         notification.onclick = function () {
           window.open(postUrl, '_blank');
           notification.close();
         };
       }
+
       document.getElementById('lastImage').src = imageURL;
       isProcessing = false;
     }
