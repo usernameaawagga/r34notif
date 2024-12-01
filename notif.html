@@ -16,7 +16,7 @@
   <button id="toggleNotifications">Enable</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <input type="text" id="tagInput" placeholder="-ai_generated -scat -vore" />
+    <input type="text" id="tagInput" placeholder="-ai_generated -vore score:>=10" />
     <button id="updateTags">Update Tags</button>
   </div>
   <p>Current Tags: <span id="currentTags">None</span></p>
@@ -25,18 +25,20 @@
     <label for="intervalInput">Set interval in seconds (Default: 10):</label>
     <input type="number" id="intervalInput" placeholder="10" min="1" />
     <button id="updateInterval">Update Interval</button>
+    <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
   <img id="lastImage" src="" alt="Last image will appear here" style="max-width: 100%; height: auto;"/>
 
   <script>
     let notificationsEnabled = false; // Start disabled
-    let tags = ""; // Start with an empty tag list
-    const impliedOrder = "sort:random"; // Always implied
+    let tags = "-ai_generated -vore score:>=10"; // Default tags
+    const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*"; // Additional implied tags
+    const impliedOrder = "sort:random"; // Implied order tag
     let images = [];
     let page = 1;
     let worker;
-    let interval = 10000; // Default interval in milliseconds
+    let interval = 10000; // Default interval in milliseconds (10 seconds)
     let retries = 0;
     const maxRetries = 5;
     let isProcessing = false; // Flag to track ongoing fetch
@@ -45,6 +47,11 @@
     function updateDisplayedTags() {
       const displayTags = tags.trim() ? `${tags}` : "None";
       document.getElementById('currentTags').innerText = displayTags;
+    }
+
+    // Update displayed current interval
+    function updateDisplayedInterval() {
+      document.getElementById('currentInterval').innerText = interval / 1000; // Convert ms to seconds
     }
 
     document.getElementById("toggleNotifications").addEventListener("click", function () {
@@ -60,12 +67,7 @@
 
     document.getElementById("updateTags").addEventListener("click", function () {
       const userTags = document.getElementById("tagInput").value.trim();
-      if (userTags === "") {
-        tags = "-ai_generated -scat -vore";  // Use default tags if empty input
-        alert("Please enter some tags! Using default tags instead.");
-      } else {
-        tags = userTags; // Update tags with user input
-      }
+      tags = userTags === "" ? "-ai_generated -vore score:>=10" : userTags; // Update tags if provided
       images = []; // Clear existing images
       page = 1; // Reset page count
       updateDisplayedTags();
@@ -80,11 +82,20 @@
       }
     });
 
+    // Trigger the 'Update Interval' button when Enter key is pressed in the input field
+    document.getElementById("intervalInput").addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {  // Check if the Enter key was pressed
+        event.preventDefault();  // Prevent form submission if inside a form
+        document.getElementById("updateInterval").click();  // Trigger the 'Update Interval' button click
+      }
+    });
+
     document.getElementById("updateInterval").addEventListener("click", function () {
       const userInterval = parseInt(document.getElementById("intervalInput").value, 10);
       if (!isNaN(userInterval) && userInterval > 0) {
         interval = userInterval * 1000; // Convert seconds to milliseconds
         console.log(`Interval updated to: ${userInterval} seconds`);
+        updateDisplayedInterval(); // Update displayed interval
         if (notificationsEnabled) {
           stopWorker();
           startWorker(); // Restart worker with new interval
@@ -116,7 +127,7 @@
 
     async function fetchImages() {
       try {
-        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}&pid=${page}`;
+        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
         const res = await fetch(apiUrl);
 
         if (!res.ok) {
@@ -251,6 +262,7 @@
 
     // Initialize displayed tags
     updateDisplayedTags();
+    updateDisplayedInterval(); // Initialize displayed interval
 
     // Ensure the worker is stopped when the page is closed
     window.onbeforeunload = function () {
