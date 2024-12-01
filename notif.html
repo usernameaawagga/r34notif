@@ -119,7 +119,7 @@
         const text = await res.text(); // Get response as text
         let json;
 
-        // Check if response is not empty or malformed
+        // Check if response is empty
         if (text.trim() === "") {
           console.error("Empty response received from the API.");
           return;
@@ -128,7 +128,8 @@
         try {
           json = JSON.parse(text); // Try to parse JSON
         } catch (e) {
-          console.error("Failed to parse JSON response:", text);
+          console.error("Failed to parse JSON response:", e);
+          console.error("Response text:", text);
           return;
         }
 
