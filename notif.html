@@ -19,7 +19,6 @@
   <button id="toggleNotifications">Enable</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <!-- The placeholder text is the default when the input is empty -->
     <input type="text" id="tagInput" placeholder="-ai_generated score:>=10" />
     <button id="updateTags">Update Tags</button>
   </div>
@@ -180,7 +179,7 @@
     }
 
     async function ping() {
-      if (!notificationsEnabled || isProcessing) return;
+      if (isProcessing) return;
       isProcessing = true;
       if (images.length < 100) {
         await fetchImages();
@@ -214,9 +213,9 @@
       isProcessing = false;
     }
 
-    // Force image button click handler (now works independently of the interval)
+    // Force image button click handler (works even if interval is not enabled)
     document.getElementById('forceImageButton').addEventListener('click', async function() {
-      await ping(); // Call ping as if it's triggered by the interval, even if interval is disabled
+      await ping(); // Call ping directly to fetch an image and trigger a notification
     });
 
     function startWorker() {
