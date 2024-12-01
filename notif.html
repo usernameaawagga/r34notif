@@ -18,7 +18,7 @@
   <button id="toggleNotifications">Enable</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <input type="text" id="tagInput" placeholder="-ai_generated score:>=10" />
+    <input type="text" id="tagInput" placeholder="Enter tags here" />
     <button id="updateTags">Update Tags</button>
   </div>
   <p>Current Tags: <span id="currentTags">None</span></p>
@@ -35,8 +35,7 @@
 
   <script>
     let notificationsEnabled = false;
-    let tags = "-ai_generated -vore score:>=10";
-    // Combined impliedTags and sort:random into a single string
+    let tags = ""; // Start with empty tags
     const impliedTags = "sort:random -fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*";
     let images = [];
     let page = 1;
@@ -47,6 +46,7 @@
     let isProcessing = false;
 
     function updateDisplayedTags() {
+      // If no tags are provided, show "None"
       const displayTags = tags.trim() ? tags : "None";
       document.getElementById('currentTags').innerText = displayTags;
     }
@@ -67,7 +67,7 @@
 
     document.getElementById("updateTags").addEventListener("click", function () {
       const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags === "" ? "-ai_generated -vore score:>=10" : userTags;
+      tags = userTags; // Set tags to the input value
       images = [];
       page = 1;
       updateDisplayedTags();
@@ -118,7 +118,6 @@
 
     async function fetchImages() {
       try {
-        // Use the combined impliedTags (tags + implied tags + sort:random)
         const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}&limit=5`;
         const res = await fetch(apiUrl);
         if (!res.ok) {
@@ -187,8 +186,6 @@
 
       const imgUrl = imgData.file_url;
       const imageElement = document.getElementById('lastImage');
-
-      // Directly show the image (no placeholder loading)
       const imageURL = await loadImageWithPlaceholder(imgUrl);
 
       // Update the image
