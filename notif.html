@@ -39,6 +39,7 @@
     let interval = 10000; // Default interval in milliseconds
     let retries = 0;
     const maxRetries = 5;
+    let isProcessing = false; // Flag to track ongoing fetch
 
     // Update displayed tags (excluding the implied order)
     function updateDisplayedTags() {
@@ -170,7 +171,9 @@
     }
 
     async function ping() {
-      if (!notificationsEnabled) return; // Do nothing if notifications are disabled
+      if (!notificationsEnabled || isProcessing) return; // Do nothing if notifications are disabled or if already processing
+
+      isProcessing = true; // Mark as processing
 
       if (images.length < 100) {
         await fetchImages();
@@ -179,6 +182,7 @@
       // Ensure there are images to show
       if (images.length === 0) {
         console.log("No images to display.");
+        isProcessing = false; // Mark as done processing
         return;
       }
 
@@ -188,6 +192,7 @@
       // Check if imgData has file_url before proceeding
       if (!imgData || !imgData.file_url) {
         console.log("Invalid image data received:", imgData);
+        isProcessing = false; // Mark as done processing
         return;
       }
 
@@ -212,6 +217,8 @@
 
       // Update the image on the web page
       document.getElementById('lastImage').src = imageURL; // Always update the image when pinged
+
+      isProcessing = false; // Mark as done processing
     }
 
     function startWorker() {
