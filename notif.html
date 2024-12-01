@@ -19,7 +19,6 @@
   <button id="toggleNotifications">Enable</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <!-- The placeholder text is the default when the input is empty -->
     <input type="text" id="tagInput" placeholder="-ai_generated -vore score:>=10" />
     <button id="updateTags">Update Tags</button>
   </div>
@@ -32,7 +31,6 @@
     <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
-  <!-- Force image button -->
   <button id="forceImageButton">Force image</button>
 
   <img id="lastImage" src="" alt="Last image will appear here" />
@@ -199,8 +197,7 @@
       }
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
-      const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
-      const res = await fetch(url);
+      const res = await fetch(imgUrl);  // Direct image fetch instead of using proxy
       const icon = await res.blob();
       const imageURL = URL.createObjectURL(icon);
       if (notificationsEnabled && Notification.permission === "granted") {
@@ -216,7 +213,7 @@
 
     // Force image button click handler
     document.getElementById('forceImageButton').addEventListener('click', async function() {
-      await ping(); // Call ping as if it's triggered by the interval
+      await ping(); // Force image fetch even if interval is not active
     });
 
     function startWorker() {
