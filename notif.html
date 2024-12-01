@@ -18,7 +18,7 @@
   <button id="toggleNotifications">Enable</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <input type="text" id="tagInput" placeholder="-ai_generated -vore score:>=10" />
+    <input type="text" id="tagInput" placeholder="-ai_generated score:>=10" />
     <button id="updateTags">Update Tags</button>
   </div>
   <p>Current Tags: <span id="currentTags">None</span></p>
@@ -31,28 +31,28 @@
   </div>
 
   <button id="forceImageButton">Force Image</button>
-  <img id="lastImage" src="" alt="Last image will appear here" />
+  <img id="lastImage" src="loading.gif" alt="Last image will appear here" />
 
   <script>
     let notificationsEnabled = false;
-    let tags = ""; // Start with empty tags
-    const impliedTags = "sort:random -fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*";
+    let tags = "-ai_generated -vore score:>=10";
+    const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*";
+    const impliedOrder = "sort:random";
     let images = [];
     let page = 1;
     let worker;
-    let interval = 10000; // Default interval in milliseconds (10 seconds)
+    let interval = 10000; // 10 seconds by default
     let retries = 0;
     const maxRetries = 5;
     let isProcessing = false;
 
     function updateDisplayedTags() {
-      // If no tags are provided, show "None"
       const displayTags = tags.trim() ? tags : "None";
       document.getElementById('currentTags').innerText = displayTags;
     }
 
     function updateDisplayedInterval() {
-      document.getElementById('currentInterval').innerText = interval / 1000; // Convert ms to seconds
+      document.getElementById('currentInterval').innerText = interval / 1000;
     }
 
     document.getElementById("toggleNotifications").addEventListener("click", function () {
@@ -67,7 +67,7 @@
 
     document.getElementById("updateTags").addEventListener("click", function () {
       const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags; // Set tags to the input value
+      tags = userTags === "" ? "-ai_generated -vore score:>=10" : userTags;
       images = [];
       page = 1;
       updateDisplayedTags();
@@ -96,7 +96,7 @@
     });
 
     document.getElementById("forceImageButton").addEventListener("click", function () {
-      ping(true); // Force image and notification
+      ping();
     });
 
     async function requestNotificationPermission() {
@@ -118,7 +118,7 @@
 
     async function fetchImages() {
       try {
-        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}&limit=5`;
+        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}+${encodeURIComponent(impliedTags)}&pid=${page}&limit=5`;
         const res = await fetch(apiUrl);
         if (!res.ok) {
           console.error(`Failed to fetch images. HTTP status: ${res.status}`);
@@ -161,8 +161,8 @@
       }
     }
 
-    async function ping(forceNotification = false) {
-      if (isProcessing) return;
+    async function ping() {
+      if (!notificationsEnabled || isProcessing) return;
       isProcessing = true;
 
       if (images.length < 100) {
@@ -186,13 +186,15 @@
 
       const imgUrl = imgData.file_url;
       const imageElement = document.getElementById('lastImage');
+
+      // Set placeholder initially and then load the actual image
+      imageElement.src = "loading.gif";  // Placeholder image or loading spinner
       const imageURL = await loadImageWithPlaceholder(imgUrl);
 
       // Update the image
       imageElement.src = imageURL;
 
-      // Send a notification if notifications are enabled or the forceNotification flag is true
-      if ((notificationsEnabled || forceNotification) && Notification.permission === "granted") {
+      if (notificationsEnabled && Notification.permission === "granted") {
         const notification = new Notification('', { image: imageURL });
         notification.onclick = function () {
           window.open(`https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`, '_blank');
