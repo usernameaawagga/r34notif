@@ -10,10 +10,17 @@
   <button id="toggleNotifications">Enable</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <input type="text" id="tagInput" placeholder="-ai_generated -scat -vore score:>=10" />
+    <input type="text" id="tagInput" placeholder="-ai_generated -vore score:>=10" />
     <button id="updateTags">Update Tags</button>
   </div>
   <p>Current Tags: <span id="currentTags">None</span></p>
+
+  <div>
+    <label for="intervalInput">Set Interval (default 10 seconds):</label>
+    <input type="number" id="intervalInput" placeholder="10" min="1" />
+    <button id="updateInterval">Update Interval</button>
+  </div>
+
   <img id="lastImage" src="" alt="Last image will appear here" style="max-width: 100%; height: auto;"/>
 
   <script>
@@ -23,6 +30,7 @@
     let images = [];
     let page = 1;
     let worker;
+    let interval = 10000; // Default interval in milliseconds
 
     // Update displayed tags (excluding the implied order)
     function updateDisplayedTags() {
@@ -48,6 +56,20 @@
       page = 1; // Reset page count
       updateDisplayedTags();
       console.log("Tags updated to:", tags);
+    });
+
+    document.getElementById("updateInterval").addEventListener("click", function () {
+      const userInterval = parseInt(document.getElementById("intervalInput").value, 10);
+      if (!isNaN(userInterval) && userInterval > 0) {
+        interval = userInterval * 1000; // Convert seconds to milliseconds
+        console.log(`Interval updated to: ${userInterval} seconds`);
+        if (notificationsEnabled) {
+          stopWorker();
+          startWorker(); // Restart worker with new interval
+        }
+      } else {
+        alert("Please enter a valid interval in seconds.");
+      }
     });
 
     async function requestNotificationPermission() {
@@ -116,8 +138,8 @@
         if (worker == undefined) {
           worker = new Worker('worker.js'); // Load the Web Worker
         }
-        // Start the worker with a 10-second interval
-        worker.postMessage({ command: 'start', interval: 10000 });
+        // Start the worker with the specified interval
+        worker.postMessage({ command: 'start', interval });
 
         // Listen for the "ping" message from the worker
         worker.onmessage = function (e) {
