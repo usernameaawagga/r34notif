@@ -7,76 +7,43 @@
 </head>
 <body>
   <h1>Last Image Sent as Notification:</h1>
-  
-  <!-- Toggle Notifications button -->
-  <button id="toggleNotifications">Enable Notifications</button>
-  
-  <!-- Tags Input and Update Button -->
+  <button id="toggleNotifications">Disable Notifications</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <input type="text" id="tagInput" placeholder="-ai_generated -scat -vore" />
+    <input type="text" id="tagInput" placeholder="e.g., kindred, -animated*" />
     <button id="updateTags">Update Tags</button>
   </div>
-  
-  <!-- Display Current Tags -->
-  <p>Current Tags: <span id="currentTags">None</span></p>
-  
-  <!-- Interval Input -->
-  <div>
-    <label for="intervalInput">Notification Interval (ms):</label>
-    <input type="number" id="intervalInput" value="10000" />
-  </div>
-  
-  <!-- Display Last Image -->
+  <p>Current Tags: <span id="currentTags">sort:random kindred -animated*</span></p>
   <img id="lastImage" src="" alt="Last notification image will appear here" style="max-width: 100%; height: auto;"/>
-  
+
   <script>
-    let notificationsEnabled = false; // Start with notifications disabled
-    let tags = ""; // Start with an empty tag list
-    const impliedOrder = "order:random"; // Implied order
+    let notificationsEnabled = true;
+    let tags = "sort:random kindred -animated*"; // Default tags
     let images = [];
     let page = 1;
     let worker;
-    let notificationInterval = 10000; // Default interval (10 seconds)
 
     // Update displayed tags
     function updateDisplayedTags() {
-      const displayTags = tags.trim() ? `${tags} ${impliedOrder}` : "None";
-      document.getElementById('currentTags').innerText = displayTags;
+      document.getElementById('currentTags').innerText = tags;
     }
 
-    // Toggle notifications and start/stop the worker
     document.getElementById("toggleNotifications").addEventListener("click", function () {
       notificationsEnabled = !notificationsEnabled;
       this.innerText = notificationsEnabled ? 'Disable Notifications' : 'Enable Notifications';
-
-      if (notificationsEnabled) {
-        startWorker(); // Start notifications
-      } else {
-        stopWorker(); // Stop notifications
-      }
     });
 
-    // Update tags based on user input
     document.getElementById("updateTags").addEventListener("click", function () {
       const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags; // Update tags with user input
-      images = []; // Clear existing images
-      page = 1; // Reset page count
-      updateDisplayedTags(); // Update displayed tags
-      console.log("Tags updated to:", tags);
-    });
-
-    // Update notification interval from input box
-    document.getElementById("intervalInput").addEventListener("input", function () {
-      notificationInterval = parseInt(this.value) || 10000; // Default to 10 seconds if input is invalid
-      if (notificationsEnabled) {
-        stopWorker(); // Stop current worker
-        startWorker(); // Restart with new interval
+      if (userTags) {
+        tags = userTags;
+        images = []; // Clear existing images when tags change
+        page = 1; // Reset page count
+        updateDisplayedTags();
+        console.log("Tags updated to:", tags);
       }
     });
 
-    // Request notification permission on page load
     async function requestNotificationPermission() {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
@@ -88,7 +55,6 @@
       }
     }
 
-    // Shuffle images
     function shuffle(array) {
       let currentIndex = array.length;
       while (currentIndex !== 0) {
@@ -98,9 +64,8 @@
       }
     }
 
-    // Fetch images from the API
     async function fetchImages() {
-      const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}&pid=${page}`;
+      const apiUrl = https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}&pid=${page};
       const res = await fetch(apiUrl);
       let json = await res.json();
       json = json.filter((x) => !x.file_url.includes('mp4'));
@@ -109,17 +74,14 @@
       page++;
     }
 
-    // Handle pinging and showing notifications
     async function ping() {
-      if (!notificationsEnabled) return; // Do nothing if notifications are disabled
-
       if (images.length < 100) {
         await fetchImages();
       }
       shuffle(images);
       const imgData = images.shift(); // Get image data
       const imgUrl = imgData.file_url;
-      const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`; // Construct the post URL
+      const postUrl = https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}; // Construct the post URL
 
       const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
       const res = await fetch(url);
@@ -141,14 +103,13 @@
       document.getElementById('lastImage').src = imageURL;
     }
 
-    // Start the web worker
     function startWorker() {
       if (typeof Worker !== "undefined") {
         if (worker == undefined) {
           worker = new Worker('worker.js'); // Load the Web Worker
         }
-        // Start the worker with the current interval
-        worker.postMessage({ command: 'start', interval: notificationInterval });
+        // Start the worker with a 10-second interval
+        worker.postMessage({ command: 'start', interval: 10000 });
 
         // Listen for the "ping" message from the worker
         worker.onmessage = function (e) {
@@ -161,21 +122,25 @@
       }
     }
 
-    // Stop the web worker
     function stopWorker() {
       if (worker) {
         worker.postMessage({ command: 'stop' });
       }
     }
 
-    // Initialize everything on page load
+    // Request notification permission on page load
     requestNotificationPermission();
-    updateDisplayedTags(); // Initialize displayed tags
+
+    // Start the notifications when the page loads
+    startWorker();
 
     // Ensure the worker is stopped when the page is closed
     window.onbeforeunload = function () {
       stopWorker();
     };
+
+    // Initialize displayed tags
+    updateDisplayedTags();
   </script>
 </body>
 </html>
