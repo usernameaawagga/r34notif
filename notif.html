@@ -9,9 +9,10 @@
     #intervalInput {
       width: 60px;
     }
-    /* Set width for the tag input box to fit the full example tags */
+    /* Fixed width for the tag input box to fit the example tags */
     #tagInput {
-      width: 600px; /* Adjusted width to fit the full example tags */
+      width: 270px; /* Fixed width to accommodate '-ai_generated -vore score:>=10' */
+      padding: 4px;
     }
   </style>
 </head>
@@ -20,7 +21,7 @@
   <button id="toggleNotifications">Enable</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <input type="text" id="tagInput" placeholder="-ai_generated -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*" />
+    <input type="text" id="tagInput" placeholder="-ai_generated -vore score:>=10" />
     <button id="updateTags">Update Tags</button>
   </div>
   <p>Current Tags: <span id="currentTags">None</span></p>
@@ -29,14 +30,14 @@
     <label for="intervalInput">Set interval in seconds (Default: 10):</label>
     <input type="number" id="intervalInput" placeholder="10" min="1" />
     <button id="updateInterval">Update Interval</button>
-    <p>Current interval: <span id="currentInterval">10</span> seconds</p>
+    <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
   <img id="lastImage" src="" alt="Last image will appear here" style="max-width: 100%; height: auto;"/>
 
   <script>
     let notificationsEnabled = false; // Start disabled
-    let tags = "-ai_generated -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*"; // Default tags
+    let tags = "-ai_generated -vore score:>=10"; // Default tags
     const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*"; // Additional implied tags
     const impliedOrder = "sort:random"; // Implied order tag
     let images = [];
@@ -71,7 +72,7 @@
 
     document.getElementById("updateTags").addEventListener("click", function () {
       const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags === "" ? "-ai_generated -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*" : userTags; // Update tags if provided
+      tags = userTags === "" ? "-ai_generated -vore score:>=10" : userTags; // Update tags if provided
       images = []; // Clear existing images
       page = 1; // Reset page count
       updateDisplayedTags();
@@ -225,53 +226,30 @@
 
         // Attach a click event listener to the notification
         notification.onclick = function () {
-          window.open(postUrl, '_blank'); // Open the post in a new tab
-          notification.close(); // Close the notification on click
+          window.open(postUrl);
         };
       }
 
-      // Update the image on the web page
-      document.getElementById('lastImage').src = imageURL; // Always update the image when pinged
+      // Update the last image shown in the browser
+      document.getElementById('lastImage').src = imgUrl;
 
       isProcessing = false; // Mark as done processing
     }
 
     function startWorker() {
-      if (typeof Worker !== "undefined") {
-        if (worker == undefined) {
-          worker = new Worker('worker.js'); // Load the Web Worker
-        }
-        // Start the worker with the specified interval
-        worker.postMessage({ command: 'start', interval });
-
-        // Listen for the "ping" message from the worker
-        worker.onmessage = function (e) {
-          if (e.data === 'ping') {
-            ping();
-          }
-        };
-      } else {
-        console.log("Web Workers are not supported in this browser.");
-      }
+      worker = setInterval(ping, interval);
     }
 
     function stopWorker() {
-      if (worker) {
-        worker.postMessage({ command: 'stop' });
-      }
+      clearInterval(worker);
     }
 
-    // Request notification permission on page load
+    // Initially request notification permission
     requestNotificationPermission();
 
-    // Initialize displayed tags and interval
+    // Set initial values
     updateDisplayedTags();
-    updateDisplayedInterval(); // Initialize displayed interval
-
-    // Ensure the worker is stopped when the page is closed
-    window.onbeforeunload = function () {
-      stopWorker();
-    };
+    updateDisplayedInterval();
   </script>
 </body>
 </html>
