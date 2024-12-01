@@ -82,8 +82,17 @@
           console.error("Error fetching images:", res.status, res.statusText);
           return;
         }
-        
-        const json = await res.json();
+
+        const responseText = await res.text(); // Get raw response text
+        console.log("Raw response:", responseText);
+
+        let json;
+        try {
+          json = JSON.parse(responseText); // Try to parse JSON
+        } catch (e) {
+          console.error("Invalid JSON response:", e);
+          return;
+        }
 
         // Check if the JSON is valid and contains results
         if (!json || json.length === 0) {
@@ -104,6 +113,12 @@
       if (images.length < 100) {
         await fetchImages();
       }
+
+      if (images.length === 0) {
+        console.warn("No images available. Skipping...");
+        return; // Do nothing if no images are available
+      }
+
       shuffle(images);
       const imgData = images.shift(); // Get image data
       const imgUrl = imgData.file_url;
