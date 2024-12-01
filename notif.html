@@ -5,15 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Customizable Image Notifications</title>
   <style>
-    /* Style for the smaller interval input box */
+    /* Style for smaller input box */
     #intervalInput {
       width: 60px;
-    }
-
-    /* Fixed width for the tag input box to perfectly fit the placeholder plus two characters */
-    #tagInput {
-      width: 250px; /* Adjusted width to fit 32 characters */
-      padding: 4px;
     }
   </style>
 </head>
@@ -51,7 +45,7 @@
 
     // Update displayed tags (excluding the implied order)
     function updateDisplayedTags() {
-      const displayTags = tags.trim() ? `${tags}` : "None";
+      const displayTags = tags.trim() ? ${tags} : "None";
       document.getElementById('currentTags').innerText = displayTags;
     }
 
@@ -100,7 +94,7 @@
       const userInterval = parseInt(document.getElementById("intervalInput").value, 10);
       if (!isNaN(userInterval) && userInterval > 0) {
         interval = userInterval * 1000; // Convert seconds to milliseconds
-        console.log(`Interval updated to: ${userInterval} seconds`);
+        console.log(Interval updated to: ${userInterval} seconds);
         updateDisplayedInterval(); // Update displayed interval
         if (notificationsEnabled) {
           stopWorker();
@@ -133,11 +127,11 @@
 
     async function fetchImages() {
       try {
-        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
+        const apiUrl = https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}+${encodeURIComponent(impliedTags)}&pid=${page};
         const res = await fetch(apiUrl);
 
         if (!res.ok) {
-          console.error(`Failed to fetch images. HTTP status: ${res.status}`);
+          console.error(Failed to fetch images. HTTP status: ${res.status});
           return;
         }
 
@@ -214,7 +208,7 @@
       }
 
       const imgUrl = imgData.file_url;
-      const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`; // Construct the post URL
+      const postUrl = https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}; // Construct the post URL
 
       const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
       const res = await fetch(url);
