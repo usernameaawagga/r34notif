@@ -119,6 +119,12 @@
         const text = await res.text(); // Get response as text
         let json;
 
+        // Check if response is not empty or malformed
+        if (text.trim() === "") {
+          console.error("Empty response received from the API.");
+          return;
+        }
+
         try {
           json = JSON.parse(text); // Try to parse JSON
         } catch (e) {
@@ -127,16 +133,18 @@
         }
 
         // Filter out unwanted file types
-        json = json.filter((x) => !x.file_url.includes('mp4'));
+        json = json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
 
-        if (!json.length) {
-          console.log("No images found. Retrying...");
+        if (json.length === 0) {
+          console.log("No images found with the current tags. Retrying...");
           page++;
           return await fetchImages();
         }
 
+        // If there are valid images, add them to the array
         images.push(...json);
         page++;
+
       } catch (error) {
         console.error("Error fetching images:", error);
       }
@@ -148,8 +156,22 @@
       if (images.length < 100) {
         await fetchImages();
       }
+
+      // Ensure there are images to show
+      if (images.length === 0) {
+        console.log("No images to display.");
+        return;
+      }
+
       shuffle(images);
       const imgData = images.shift(); // Get image data
+
+      // Check if imgData has file_url before proceeding
+      if (!imgData || !imgData.file_url) {
+        console.log("Invalid image data received:", imgData);
+        return;
+      }
+
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`; // Construct the post URL
 
