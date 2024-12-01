@@ -19,7 +19,7 @@
   <button id="toggleNotifications">Enable</button>
   <div>
     <label for="tagInput">Enter Tags:</label>
-    <input type="text" id="tagInput" placeholder="-ai_generated score:>=10" />
+    <input type="text" id="tagInput" placeholder="Enter custom tags..." />
     <button id="updateTags">Update Tags</button>
   </div>
   <p>Current Tags: <span id="currentTags">None</span></p>
@@ -37,7 +37,7 @@
 
   <script>
     let notificationsEnabled = false;
-    let tags = "-ai_generated -vore score:>=10";
+    let tags = ""; // Start with an empty string
     const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*";
     const impliedOrder = "sort:random";
     let images = [];
@@ -69,7 +69,7 @@
 
     document.getElementById("updateTags").addEventListener("click", function () {
       const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags === "" ? "-ai_generated -vore score:>=10" : userTags;
+      tags = userTags; // Set the tags to user input, even if empty
       images = [];
       page = 1;
       updateDisplayedTags();
@@ -169,7 +169,7 @@
     }
 
     async function ping() {
-      if (!notificationsEnabled || isProcessing) return;
+      if (isProcessing) return;
       isProcessing = true;
       if (images.length < 100) {
         await fetchImages();
