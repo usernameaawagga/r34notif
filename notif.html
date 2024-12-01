@@ -11,6 +11,7 @@
     #lastImage {
       max-width: 100%;
       height: auto;
+      max-height: 500px;
     }
   </style>
 </head>
@@ -30,8 +31,7 @@
     <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
-  <button id="forceImageButton">Force Image</button>
-  <img id="lastImage" src="loading.gif" alt="Last image will appear here" />
+  <img id="lastImage" src="" alt="Last image will appear here" />
 
   <script>
     let notificationsEnabled = false;
@@ -41,13 +41,13 @@
     let images = [];
     let page = 1;
     let worker;
-    let interval = 10000; // 10 seconds by default
+    let interval = 10000;
     let retries = 0;
     const maxRetries = 5;
     let isProcessing = false;
 
     function updateDisplayedTags() {
-      const displayTags = tags.trim() ? tags : "None";
+      const displayTags = tags.trim() ? `${tags}` : "None";
       document.getElementById('currentTags').innerText = displayTags;
     }
 
@@ -74,6 +74,13 @@
       console.log("Tags updated to:", tags);
     });
 
+    document.getElementById("tagInput").addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        document.getElementById("updateTags").click();
+      }
+    });
+
     document.getElementById("intervalInput").addEventListener("keydown", function(event) {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -85,6 +92,7 @@
       const userInterval = parseInt(document.getElementById("intervalInput").value, 10);
       if (!isNaN(userInterval) && userInterval > 0) {
         interval = userInterval * 1000;
+        console.log(`Interval updated to: ${userInterval} seconds`);
         updateDisplayedInterval();
         if (notificationsEnabled) {
           stopWorker();
@@ -95,15 +103,14 @@
       }
     });
 
-    document.getElementById("forceImageButton").addEventListener("click", function () {
-      ping();
-    });
-
     async function requestNotificationPermission() {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
+        console.log("Notification permission denied.");
         notificationsEnabled = false;
         document.getElementById("toggleNotifications").innerText = 'Enable';
+      } else {
+        console.log("Notification permission granted.");
       }
     }
 
@@ -118,14 +125,14 @@
 
     async function fetchImages() {
       try {
-        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}+${encodeURIComponent(impliedTags)}&pid=${page}&limit=5`;
+        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
         const res = await fetch(apiUrl);
         if (!res.ok) {
           console.error(`Failed to fetch images. HTTP status: ${res.status}`);
           return;
         }
-
         const text = await res.text();
+        let json;
         if (text.trim() === "") {
           console.error("Empty response received from the API.");
           if (retries < maxRetries) {
@@ -137,22 +144,20 @@
             return;
           }
         }
-
-        let json;
         try {
           json = JSON.parse(text);
         } catch (e) {
           console.error("Failed to parse JSON response:", e);
+          console.error("Response text:", text);
           return;
         }
-
-        json = json.filter(x => x.file_url && !x.file_url.includes('mp4'));
+        json = json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
         if (json.length === 0) {
+          console.log("No images found with the current tags. Retrying...");
           retries++;
           page++;
           return await fetchImages();
         }
-
         retries = 0;
         images.push(...json);
         page++;
@@ -164,54 +169,36 @@
     async function ping() {
       if (!notificationsEnabled || isProcessing) return;
       isProcessing = true;
-
       if (images.length < 100) {
         await fetchImages();
       }
-
       if (images.length === 0) {
         console.log("No images to display.");
         isProcessing = false;
         return;
       }
-
       shuffle(images);
       const imgData = images.shift();
-
       if (!imgData || !imgData.file_url) {
         console.log("Invalid image data received:", imgData);
         isProcessing = false;
         return;
       }
-
       const imgUrl = imgData.file_url;
-      const imageElement = document.getElementById('lastImage');
-
-      // Set placeholder initially and then load the actual image
-      imageElement.src = "loading.gif";  // Placeholder image or loading spinner
-      const imageURL = await loadImageWithPlaceholder(imgUrl);
-
-      // Update the image
-      imageElement.src = imageURL;
-
+      const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
+      const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
+      const res = await fetch(url);
+      const icon = await res.blob();
+      const imageURL = URL.createObjectURL(icon);
       if (notificationsEnabled && Notification.permission === "granted") {
         const notification = new Notification('', { image: imageURL });
         notification.onclick = function () {
-          window.open(`https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`, '_blank');
+          window.open(postUrl, '_blank');
           notification.close();
         };
       }
-
+      document.getElementById('lastImage').src = imageURL;
       isProcessing = false;
-    }
-
-    function loadImageWithPlaceholder(imageURL) {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img.src);
-        img.onerror = reject;
-        img.src = imageURL;
-      });
     }
 
     function startWorker() {
