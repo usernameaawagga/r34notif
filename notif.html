@@ -31,7 +31,7 @@
   </div>
 
   <button id="forceImageButton">Force Image</button>
-  <img id="lastImage" src="loading.gif" alt="Last image will appear here" />
+  <img id="lastImage" src="" alt="Last image will appear here" />
 
   <script>
     let notificationsEnabled = false;
@@ -96,7 +96,7 @@
     });
 
     document.getElementById("forceImageButton").addEventListener("click", function () {
-      ping();
+      ping(true); // Pass 'true' to force image and send notification
     });
 
     async function requestNotificationPermission() {
@@ -161,7 +161,7 @@
       }
     }
 
-    async function ping() {
+    async function ping(forceNotification = false) {
       if (!notificationsEnabled || isProcessing) return;
       isProcessing = true;
 
@@ -187,14 +187,14 @@
       const imgUrl = imgData.file_url;
       const imageElement = document.getElementById('lastImage');
 
-      // Set placeholder initially and then load the actual image
-      imageElement.src = "loading.gif";  // Placeholder image or loading spinner
+      // Directly show the image (no placeholder loading)
       const imageURL = await loadImageWithPlaceholder(imgUrl);
 
       // Update the image
       imageElement.src = imageURL;
 
-      if (notificationsEnabled && Notification.permission === "granted") {
+      // Send a notification if notifications are enabled and user requests a force notification
+      if (notificationsEnabled && Notification.permission === "granted" && (forceNotification || notificationsEnabled)) {
         const notification = new Notification('', { image: imageURL });
         notification.onclick = function () {
           window.open(`https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`, '_blank');
