@@ -36,12 +36,12 @@
   <script>
     let notificationsEnabled = false;
     let tags = "-ai_generated -vore score:>=10";
-    const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*";
-    const impliedOrder = "sort:random";
+    // Combined impliedTags and impliedOrder
+    const impliedTagsAndOrder = "sort:random -fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*";
     let images = [];
     let page = 1;
     let worker;
-    let interval = 10000; // 10 seconds by default
+    let interval = 10000; // Default interval in milliseconds (10 seconds)
     let retries = 0;
     const maxRetries = 5;
     let isProcessing = false;
@@ -52,7 +52,7 @@
     }
 
     function updateDisplayedInterval() {
-      document.getElementById('currentInterval').innerText = interval / 1000;
+      document.getElementById('currentInterval').innerText = interval / 1000; // Convert ms to seconds
     }
 
     document.getElementById("toggleNotifications").addEventListener("click", function () {
@@ -96,7 +96,7 @@
     });
 
     document.getElementById("forceImageButton").addEventListener("click", function () {
-      ping(true); // Pass 'true' to force image and send notification
+      ping(true); // Force image and notification
     });
 
     async function requestNotificationPermission() {
@@ -118,7 +118,8 @@
 
     async function fetchImages() {
       try {
-        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedOrder)}+${encodeURIComponent(impliedTags)}&pid=${page}&limit=5`;
+        // Use the combined impliedTags and impliedOrder in the API request
+        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTagsAndOrder)}&pid=${page}&limit=5`;
         const res = await fetch(apiUrl);
         if (!res.ok) {
           console.error(`Failed to fetch images. HTTP status: ${res.status}`);
@@ -162,7 +163,7 @@
     }
 
     async function ping(forceNotification = false) {
-      if (!notificationsEnabled || isProcessing) return;
+      if (isProcessing) return;
       isProcessing = true;
 
       if (images.length < 100) {
@@ -193,8 +194,8 @@
       // Update the image
       imageElement.src = imageURL;
 
-      // Send a notification if notifications are enabled and user requests a force notification
-      if (notificationsEnabled && Notification.permission === "granted" && (forceNotification || notificationsEnabled)) {
+      // Send a notification if notifications are enabled or the forceNotification flag is true
+      if ((notificationsEnabled || forceNotification) && Notification.permission === "granted") {
         const notification = new Notification('', { image: imageURL });
         notification.onclick = function () {
           window.open(`https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`, '_blank');
