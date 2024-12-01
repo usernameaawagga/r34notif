@@ -36,8 +36,8 @@
   <script>
     let notificationsEnabled = false;
     let tags = "-ai_generated -vore score:>=10";
-    // Combined impliedTags and impliedOrder
-    const impliedTagsAndOrder = "sort:random -fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*";
+    // Combined impliedTags and sort:random into a single string
+    const impliedTags = "sort:random -fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces*";
     let images = [];
     let page = 1;
     let worker;
@@ -118,8 +118,8 @@
 
     async function fetchImages() {
       try {
-        // Use the combined impliedTags and impliedOrder in the API request
-        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTagsAndOrder)}&pid=${page}&limit=5`;
+        // Use the combined impliedTags (tags + implied tags + sort:random)
+        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}&limit=5`;
         const res = await fetch(apiUrl);
         if (!res.ok) {
           console.error(`Failed to fetch images. HTTP status: ${res.status}`);
