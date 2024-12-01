@@ -37,6 +37,8 @@
     let page = 1;
     let worker;
     let interval = 10000; // Default interval in milliseconds
+    let retries = 0;
+    const maxRetries = 5;
 
     // Update displayed tags (excluding the implied order)
     function updateDisplayedTags() {
@@ -57,7 +59,12 @@
 
     document.getElementById("updateTags").addEventListener("click", function () {
       const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags; // Update tags with user input
+      if (userTags === "") {
+        tags = "-ai_generated -scat -vore";  // Use default tags if empty input
+        alert("Please enter some tags! Using default tags instead.");
+      } else {
+        tags = userTags; // Update tags with user input
+      }
       images = []; // Clear existing images
       page = 1; // Reset page count
       updateDisplayedTags();
@@ -122,7 +129,14 @@
         // Check if response is empty
         if (text.trim() === "") {
           console.error("Empty response received from the API.");
-          return;
+          if (retries < maxRetries) {
+            retries++;
+            page++;
+            return await fetchImages(); // Retry
+          } else {
+            console.error("Max retries reached.");
+            return;
+          }
         }
 
         try {
@@ -138,9 +152,13 @@
 
         if (json.length === 0) {
           console.log("No images found with the current tags. Retrying...");
+          retries++;
           page++;
           return await fetchImages();
         }
+
+        // Reset retries if we get valid images
+        retries = 0;
 
         // If there are valid images, add them to the array
         images.push(...json);
