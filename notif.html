@@ -41,12 +41,16 @@
 
   <script>
     let notificationsEnabled = false;
-    let tags = ""; // Initially empty
+    let tags = "";
     const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
     let images = [];
     let page = 1;
     let interval = 10000;
     let isProcessing = false;
+
+    function log(...args) {
+      console.log("[DEBUG]", ...args);
+    }
 
     function updateDisplayedTags() {
       const displayTags = tags.trim() ? `${tags}` : "None";
@@ -61,7 +65,7 @@
       if (Notification.permission === "default") {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
-          console.log("Notification permission denied.");
+          log("Notification permission denied.");
           return false;
         }
       }
@@ -81,7 +85,7 @@
       images = [];
       page = 1;
       updateDisplayedTags();
-      console.log("Tags updated to:", tags);
+      log("Tags updated to:", tags);
     });
 
     document.getElementById("updateInterval").addEventListener("click", function () {
@@ -89,7 +93,7 @@
       if (!isNaN(userInterval) && userInterval > 0) {
         interval = userInterval * 1000;
         updateDisplayedInterval();
-        console.log(`Interval updated to: ${userInterval} seconds`);
+        log(`Interval updated to: ${userInterval} seconds`);
       } else {
         alert("Please enter a valid interval in seconds.");
       }
@@ -98,22 +102,23 @@
     async function fetchImages() {
       const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
       try {
+        log("Fetching images from API:", apiUrl);
         const res = await fetch(apiUrl);
         if (!res.ok) {
-          console.error(`Failed to fetch images. HTTP status: ${res.status}`);
+          log(`Failed to fetch images. HTTP status: ${res.status}`);
           return;
         }
         const json = await res.json();
         const validImages = json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
         if (validImages.length === 0) {
-          console.log("No valid images found. Incrementing page...");
+          log("No valid images found. Incrementing page...");
           page++;
           return await fetchImages();
         }
         images.push(...validImages);
         page++;
       } catch (error) {
-        console.error("Error fetching images:", error);
+        log("Error fetching images:", error);
       }
     }
 
@@ -126,7 +131,7 @@
       }
 
       if (images.length === 0) {
-        console.log("No images available.");
+        log("No images available.");
         isProcessing = false;
         return;
       }
@@ -139,13 +144,14 @@
         // Verify the URL is accessible
         const res = await fetch(imgUrl, { method: "HEAD" });
         if (!res.ok) {
-          console.error("Image URL not accessible:", imgUrl);
+          log("Image URL not accessible:", imgUrl);
           isProcessing = false;
           return;
         }
 
         // Assign to the image element
         document.getElementById("lastImage").src = imgUrl;
+        log("Image displayed:", imgUrl);
 
         // Show notification if enabled
         if (notificationsEnabled && Notification.permission === "granted") {
@@ -156,7 +162,7 @@
           notification.onclick = () => window.open(postUrl, "_blank");
         }
       } catch (error) {
-        console.error("Error displaying image:", error);
+        log("Error displaying image:", error);
       } finally {
         isProcessing = false;
       }
