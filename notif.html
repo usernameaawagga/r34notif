@@ -36,9 +36,7 @@
     <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
-  <!-- Force image button -->
   <button id="forceImageButton">Force image</button>
-
   <img id="lastImage" src="" alt="Last image will appear here" />
 
   <script>
@@ -47,12 +45,8 @@
     const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
     let images = [];
     let page = 1;
-    let worker;
     let interval = 10000;
-    let retries = 0;
-    const maxRetries = 5;
     let isProcessing = false;
-    let timeoutId;
 
     function updateDisplayedTags() {
       const displayTags = tags.trim() ? `${tags}` : "None";
@@ -63,112 +57,60 @@
       document.getElementById('currentInterval').innerText = interval / 1000;
     }
 
-    // Debounced function to limit rapid tag updates
-    function debounce(func, delay) {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(func, delay);
-    }
-
-    function updateTags() {
-      const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags === "" ? "" : userTags;
-      images = [];
-      page = 1;
-      updateDisplayedTags();
-      console.log("Tags updated to:", tags);
-    }
-
-    document.getElementById("toggleNotifications").addEventListener("click", async function () {
+    async function requestNotificationPermission() {
       if (Notification.permission === "default") {
         const permission = await Notification.requestPermission();
         if (permission !== "granted") {
           console.log("Notification permission denied.");
-          return;
+          return false;
         }
       }
+      return true;
+    }
+
+    document.getElementById("toggleNotifications").addEventListener("click", async function () {
+      const granted = await requestNotificationPermission();
+      if (!granted) return;
 
       notificationsEnabled = !notificationsEnabled;
       this.innerText = notificationsEnabled ? 'Disable' : 'Request Permission';
-
-      if (notificationsEnabled) {
-        startWorker();
-      } else {
-        stopWorker();
-      }
     });
 
     document.getElementById("updateTags").addEventListener("click", function () {
-      debounce(updateTags, 500);
-    });
-
-    document.getElementById("tagInput").addEventListener("input", function () {
-      debounce(updateTags, 500);
-    });
-
-    document.getElementById("intervalInput").addEventListener("keydown", function (event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        document.getElementById("updateInterval").click();
-      }
+      tags = document.getElementById("tagInput").value.trim() || "";
+      images = [];
+      page = 1;
+      updateDisplayedTags();
+      console.log("Tags updated to:", tags);
     });
 
     document.getElementById("updateInterval").addEventListener("click", function () {
       const userInterval = parseInt(document.getElementById("intervalInput").value, 10);
       if (!isNaN(userInterval) && userInterval > 0) {
         interval = userInterval * 1000;
-        console.log(`Interval updated to: ${userInterval} seconds`);
         updateDisplayedInterval();
-        if (notificationsEnabled) {
-          stopWorker();
-          startWorker();
-        }
+        console.log(`Interval updated to: ${userInterval} seconds`);
       } else {
         alert("Please enter a valid interval in seconds.");
       }
     });
 
     async function fetchImages() {
+      const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
       try {
-        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
         const res = await fetch(apiUrl);
         if (!res.ok) {
           console.error(`Failed to fetch images. HTTP status: ${res.status}`);
           return;
         }
-
-        const text = await res.text();
-        let json;
-
-        if (text.trim() === "") {
-          console.error("Empty response received from the API.");
-          if (retries < maxRetries) {
-            retries++;
-            page++;
-            return await fetchImages();
-          } else {
-            console.error("Max retries reached.");
-            return;
-          }
-        }
-
-        try {
-          json = JSON.parse(text);
-        } catch (e) {
-          console.error("Failed to parse JSON response:", e);
-          console.error("Response text:", text);
-          return;
-        }
-
-        json = json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
-        if (json.length === 0) {
-          console.log("No images found with the current tags. Retrying...");
-          retries++;
+        const json = await res.json();
+        const validImages = json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
+        if (validImages.length === 0) {
+          console.log("No valid images found. Incrementing page...");
           page++;
           return await fetchImages();
         }
-
-        retries = 0;
-        images.push(...json);
+        images.push(...validImages);
         page++;
       } catch (error) {
         console.error("Error fetching images:", error);
@@ -177,44 +119,42 @@
 
     async function ping() {
       if (isProcessing) return;
-
       isProcessing = true;
 
-      if (images.length < 100) {
+      if (images.length < 1) {
         await fetchImages();
       }
 
       if (images.length === 0) {
-        console.log("No images to display.");
+        console.log("No images available.");
         isProcessing = false;
         return;
       }
 
       const imgData = images.shift();
-      if (!imgData || !imgData.file_url) {
-        console.log("Invalid image data received:", imgData);
-        isProcessing = false;
-        return;
-      }
-
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
-      const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
 
       try {
-        const res = await fetch(url);
-        const icon = await res.blob();
-        const imageURL = URL.createObjectURL(icon);
-
-        if (Notification.permission === "granted") {
-          const notification = new Notification('', { image: imageURL });
-          notification.onclick = function () {
-            window.open(postUrl, '_blank');
-            notification.close();
-          };
+        // Verify the URL is accessible
+        const res = await fetch(imgUrl, { method: "HEAD" });
+        if (!res.ok) {
+          console.error("Image URL not accessible:", imgUrl);
+          isProcessing = false;
+          return;
         }
 
-        document.getElementById('lastImage').src = imageURL;
+        // Assign to the image element
+        document.getElementById("lastImage").src = imgUrl;
+
+        // Show notification if enabled
+        if (notificationsEnabled && Notification.permission === "granted") {
+          const notification = new Notification("New Image Available", {
+            body: "Click to view the image.",
+            image: imgUrl,
+          });
+          notification.onclick = () => window.open(postUrl, "_blank");
+        }
       } catch (error) {
         console.error("Error displaying image:", error);
       } finally {
@@ -222,32 +162,7 @@
       }
     }
 
-    document.getElementById('forceImageButton').addEventListener('click', async function () {
-      await ping();
-    });
-
-    function startWorker() {
-      if (typeof Worker !== "undefined") {
-        if (worker == undefined) {
-          worker = new Worker('worker.js');
-        }
-        worker.postMessage({ command: 'start', interval });
-        worker.onmessage = function (e) {
-          if (e.data === 'ping') {
-            ping();
-          }
-        };
-      } else {
-        console.log("Web Workers are not supported in this browser.");
-      }
-    }
-
-    function stopWorker() {
-      if (worker) {
-        worker.postMessage({ command: 'stop' });
-      }
-    }
-
+    document.getElementById("forceImageButton").addEventListener("click", ping);
     updateDisplayedTags();
     updateDisplayedInterval();
   </script>
