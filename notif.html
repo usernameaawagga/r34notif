@@ -31,14 +31,12 @@
     <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
-  <!-- Force image button -->
-  <button id="forceImageButton">Force image</button>
-
+  <button id="forceImage">Force Image</button>
   <img id="lastImage" src="" alt="Last image will appear here" />
 
   <script>
     let notificationsEnabled = false;
-    let tags = ""; // Initially empty
+    let tags = "";
     const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
     let images = [];
     let page = 1;
@@ -47,32 +45,14 @@
     let retries = 0;
     const maxRetries = 5;
     let isProcessing = false;
-    let timeoutId;
 
     function updateDisplayedTags() {
-      const displayTags = tags.trim() ? `${tags}` : "None";
+      const displayTags = tags.trim() ? tags : "None";
       document.getElementById('currentTags').innerText = displayTags;
     }
 
     function updateDisplayedInterval() {
       document.getElementById('currentInterval').innerText = interval / 1000;
-    }
-
-    // Debounced function to limit rapid tag updates
-    function debounce(func, delay) {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(func, delay);
-    }
-
-    // Update Tags function with debouncing
-    function updateTags() {
-      const userTags = document.getElementById("tagInput").value.trim();
-      // Update tags with the user input, if there's anything, or leave it as an empty string
-      tags = userTags === "" ? "" : userTags; // Don't set default tags unless explicitly entered by the user
-      images = [];
-      page = 1;
-      updateDisplayedTags();
-      console.log("Tags updated to:", tags);
     }
 
     document.getElementById("toggleNotifications").addEventListener("click", function () {
@@ -86,11 +66,19 @@
     });
 
     document.getElementById("updateTags").addEventListener("click", function () {
-      debounce(updateTags, 500);
+      const userTags = document.getElementById("tagInput").value.trim();
+      tags = userTags === "" ? "" : userTags;
+      images = [];
+      page = 1;
+      updateDisplayedTags();
+      console.log("Tags updated to:", tags);
     });
 
-    document.getElementById("tagInput").addEventListener("input", function() {
-      debounce(updateTags, 500);
+    document.getElementById("tagInput").addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        document.getElementById("updateTags").click();
+      }
     });
 
     document.getElementById("intervalInput").addEventListener("keydown", function(event) {
@@ -179,8 +167,9 @@
     }
 
     async function ping() {
-      if (isProcessing) return;
+      if (!notificationsEnabled && images.length === 0) return;
       isProcessing = true;
+
       if (images.length < 100) {
         await fetchImages();
       }
@@ -189,6 +178,7 @@
         isProcessing = false;
         return;
       }
+
       shuffle(images);
       const imgData = images.shift();
       if (!imgData || !imgData.file_url) {
@@ -196,30 +186,36 @@
         isProcessing = false;
         return;
       }
+
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
       const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(imgUrl)}`;
-      const res = await fetch(url);
-      const icon = await res.blob();
-      const imageURL = URL.createObjectURL(icon);
 
-      // Send notification even if notifications are not enabled (but permission is granted)
-      if (Notification.permission === "granted") {
-        const notification = new Notification('', { image: imageURL });
-        notification.onclick = function () {
-          window.open(postUrl, '_blank');
-          notification.close();
-        };
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          console.error(`Failed to fetch image. HTTP status: ${res.status}`);
+          isProcessing = false;
+          return;
+        }
+        const icon = await res.blob();
+        const imageURL = URL.createObjectURL(icon);
+
+        if (notificationsEnabled && Notification.permission === "granted") {
+          const notification = new Notification('', { image: imageURL });
+          notification.onclick = function () {
+            window.open(postUrl, '_blank');
+            notification.close();
+          };
+        }
+
+        document.getElementById('lastImage').src = imageURL;
+      } catch (error) {
+        console.error("Error fetching image:", error);
       }
 
-      document.getElementById('lastImage').src = imageURL;
       isProcessing = false;
     }
-
-    // Force image button click handler (works even if interval is not enabled)
-    document.getElementById('forceImageButton').addEventListener('click', async function() {
-      await ping(); // Call ping directly to fetch an image and trigger a notification
-    });
 
     function startWorker() {
       if (typeof Worker !== "undefined") {
@@ -242,6 +238,8 @@
         worker.postMessage({ command: 'stop' });
       }
     }
+
+    document.getElementById("forceImage").addEventListener("click", ping);
 
     requestNotificationPermission();
     updateDisplayedTags();
