@@ -37,7 +37,7 @@
   <script>
     let notificationsEnabled = false;
     let tags = "";
-    const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
+    const impliedTags = "-ai_generated -vore score:>=10 -fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
     let images = [];
     let page = 1;
     let worker;
@@ -67,11 +67,15 @@
 
     document.getElementById("updateTags").addEventListener("click", function () {
       const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags === "" ? "" : userTags;
+      tags = userTags || "-ai_generated -vore score:>=10";
       images = [];
       page = 1;
       updateDisplayedTags();
       console.log("Tags updated to:", tags);
+    });
+
+    document.getElementById("forceImage").addEventListener("click", async function () {
+      if (!isProcessing) await ping();
     });
 
     document.getElementById("tagInput").addEventListener("keydown", function(event) {
@@ -103,76 +107,41 @@
       }
     });
 
-    async function requestNotificationPermission() {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        console.log("Notification permission denied.");
-        notificationsEnabled = false;
-        document.getElementById("toggleNotifications").innerText = 'Enable';
-      } else {
-        console.log("Notification permission granted.");
-      }
-    }
-
-    function shuffle(array) {
-      let currentIndex = array.length;
-      while (currentIndex !== 0) {
-        let randomIndex = Math.floor(Math.random() * currentIndex);
-        currentIndex--;
-        [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-      }
-    }
-
-    async function fetchImages() {
+    async function fetchImagesBatch(pages) {
       try {
-        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
-        const res = await fetch(apiUrl);
-        if (!res.ok) {
-          console.error(`Failed to fetch images. HTTP status: ${res.status}`);
-          return;
-        }
-        const text = await res.text();
-        let json;
-        if (text.trim() === "") {
-          console.error("Empty response received from the API.");
-          if (retries < maxRetries) {
-            retries++;
-            page++;
-            return await fetchImages();
-          } else {
-            console.error("Max retries reached.");
-            return;
+        const requests = pages.map((p) => {
+          const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&limit=100&pid=${p}`;
+          return fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`).then((res) => res.json());
+        });
+
+        const results = await Promise.all(requests);
+        const flattenedResults = results.flatMap((result) => {
+          try {
+            const json = JSON.parse(result.contents);
+            return json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
+          } catch {
+            console.error("Failed to parse batch result:", result);
+            return [];
           }
-        }
-        try {
-          json = JSON.parse(text);
-        } catch (e) {
-          console.error("Failed to parse JSON response:", e);
-          console.error("Response text:", text);
-          return;
-        }
-        json = json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
-        if (json.length === 0) {
-          console.log("No images found with the current tags. Retrying...");
-          retries++;
-          page++;
-          return await fetchImages();
-        }
+        });
+
+        images.push(...flattenedResults);
         retries = 0;
-        images.push(...json);
-        page++;
       } catch (error) {
-        console.error("Error fetching images:", error);
+        console.error("Error fetching images in batch:", error);
       }
     }
 
     async function ping() {
-      if (!notificationsEnabled && images.length === 0) return;
+      if (!notificationsEnabled && !isProcessing) return;
       isProcessing = true;
-
       if (images.length < 100) {
-        await fetchImages();
+        const batchSize = 3;
+        const pages = Array.from({ length: batchSize }, (_, i) => page + i);
+        page += batchSize;
+        await fetchImagesBatch(pages);
       }
+
       if (images.length === 0) {
         console.log("No images to display.");
         isProcessing = false;
@@ -189,20 +158,16 @@
 
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
-      const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(imgUrl)}`;
+      const proxiedUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(imgUrl)}`;
 
       try {
-        const res = await fetch(url);
-        if (!res.ok) {
-          console.error(`Failed to fetch image. HTTP status: ${res.status}`);
-          isProcessing = false;
-          return;
-        }
-        const icon = await res.blob();
-        const imageURL = URL.createObjectURL(icon);
+        const res = await fetch(proxiedUrl);
+        const proxyData = await res.json();
+        const blob = await fetch(proxyData.contents).then((r) => r.blob());
+        const imageURL = URL.createObjectURL(blob);
 
         if (notificationsEnabled && Notification.permission === "granted") {
-          const notification = new Notification('', { image: imageURL });
+          const notification = new Notification("New Image", { image: imageURL });
           notification.onclick = function () {
             window.open(postUrl, '_blank');
             notification.close();
@@ -211,10 +176,19 @@
 
         document.getElementById('lastImage').src = imageURL;
       } catch (error) {
-        console.error("Error fetching image:", error);
+        console.error("Failed to load image:", error);
       }
 
       isProcessing = false;
+    }
+
+    function shuffle(array) {
+      let currentIndex = array.length;
+      while (currentIndex !== 0) {
+        let randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+        [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+      }
     }
 
     function startWorker() {
@@ -239,7 +213,13 @@
       }
     }
 
-    document.getElementById("forceImage").addEventListener("click", ping);
+    async function requestNotificationPermission() {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        notificationsEnabled = false;
+        document.getElementById("toggleNotifications").innerText = 'Enable';
+      }
+    }
 
     requestNotificationPermission();
     updateDisplayedTags();
