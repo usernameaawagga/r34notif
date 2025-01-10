@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     #intervalInput {
       width: 60px;
     }
+
     #lastImage {
       max-width: 100%;
       height: auto;
@@ -15,13 +17,16 @@
     }
   </style>
 </head>
+
 <body>
-  <button id="toggleNotifications">Enable</button>
+  <button id="toggleNotifications">Request Permission</button>
+
   <div>
     <label for="tagInput">Enter Tags:</label>
     <input type="text" id="tagInput" placeholder="-ai_generated score:>=10" />
     <button id="updateTags">Update Tags</button>
   </div>
+
   <p>Current Tags: <span id="currentTags">None</span></p>
 
   <div>
@@ -64,20 +69,27 @@
       timeoutId = setTimeout(func, delay);
     }
 
-    // Update Tags function with debouncing
     function updateTags() {
       const userTags = document.getElementById("tagInput").value.trim();
-      // Update tags with the user input, if there's anything, or leave it as an empty string
-      tags = userTags === "" ? "" : userTags; // Don't set default tags unless explicitly entered by the user
+      tags = userTags === "" ? "" : userTags;
       images = [];
       page = 1;
       updateDisplayedTags();
       console.log("Tags updated to:", tags);
     }
 
-    document.getElementById("toggleNotifications").addEventListener("click", function () {
+    document.getElementById("toggleNotifications").addEventListener("click", async function () {
+      if (Notification.permission === "default") {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          console.log("Notification permission denied.");
+          return;
+        }
+      }
+
       notificationsEnabled = !notificationsEnabled;
-      this.innerText = notificationsEnabled ? 'Disable' : 'Enable';
+      this.innerText = notificationsEnabled ? 'Disable' : 'Request Permission';
+
       if (notificationsEnabled) {
         startWorker();
       } else {
@@ -89,11 +101,11 @@
       debounce(updateTags, 500);
     });
 
-    document.getElementById("tagInput").addEventListener("input", function() {
+    document.getElementById("tagInput").addEventListener("input", function () {
       debounce(updateTags, 500);
     });
 
-    document.getElementById("intervalInput").addEventListener("keydown", function(event) {
+    document.getElementById("intervalInput").addEventListener("keydown", function (event) {
       if (event.key === "Enter") {
         event.preventDefault();
         document.getElementById("updateInterval").click();
@@ -115,26 +127,6 @@
       }
     });
 
-    async function requestNotificationPermission() {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        console.log("Notification permission denied.");
-        notificationsEnabled = false;
-        document.getElementById("toggleNotifications").innerText = 'Enable';
-      } else {
-        console.log("Notification permission granted.");
-      }
-    }
-
-    function shuffle(array) {
-      let currentIndex = array.length;
-      while (currentIndex !== 0) {
-        let randomIndex = Math.floor(Math.random() * currentIndex);
-        currentIndex--;
-        [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-      }
-    }
-
     async function fetchImages() {
       try {
         const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
@@ -143,8 +135,10 @@
           console.error(`Failed to fetch images. HTTP status: ${res.status}`);
           return;
         }
+
         const text = await res.text();
         let json;
+
         if (text.trim() === "") {
           console.error("Empty response received from the API.");
           if (retries < maxRetries) {
@@ -156,6 +150,7 @@
             return;
           }
         }
+
         try {
           json = JSON.parse(text);
         } catch (e) {
@@ -163,6 +158,7 @@
           console.error("Response text:", text);
           return;
         }
+
         json = json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
         if (json.length === 0) {
           console.log("No images found with the current tags. Retrying...");
@@ -170,6 +166,7 @@
           page++;
           return await fetchImages();
         }
+
         retries = 0;
         images.push(...json);
         page++;
@@ -180,45 +177,53 @@
 
     async function ping() {
       if (isProcessing) return;
+
       isProcessing = true;
+
       if (images.length < 100) {
         await fetchImages();
       }
+
       if (images.length === 0) {
         console.log("No images to display.");
         isProcessing = false;
         return;
       }
-      shuffle(images);
+
       const imgData = images.shift();
       if (!imgData || !imgData.file_url) {
         console.log("Invalid image data received:", imgData);
         isProcessing = false;
         return;
       }
+
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
       const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
-      const res = await fetch(url);
-      const icon = await res.blob();
-      const imageURL = URL.createObjectURL(icon);
 
-      // Send notification even if notifications are not enabled (but permission is granted)
-      if (Notification.permission === "granted") {
-        const notification = new Notification('', { image: imageURL });
-        notification.onclick = function () {
-          window.open(postUrl, '_blank');
-          notification.close();
-        };
+      try {
+        const res = await fetch(url);
+        const icon = await res.blob();
+        const imageURL = URL.createObjectURL(icon);
+
+        if (Notification.permission === "granted") {
+          const notification = new Notification('', { image: imageURL });
+          notification.onclick = function () {
+            window.open(postUrl, '_blank');
+            notification.close();
+          };
+        }
+
+        document.getElementById('lastImage').src = imageURL;
+      } catch (error) {
+        console.error("Error displaying image:", error);
+      } finally {
+        isProcessing = false;
       }
-
-      document.getElementById('lastImage').src = imageURL;
-      isProcessing = false;
     }
 
-    // Force image button click handler (works even if interval is not enabled)
-    document.getElementById('forceImageButton').addEventListener('click', async function() {
-      await ping(); // Call ping directly to fetch an image and trigger a notification
+    document.getElementById('forceImageButton').addEventListener('click', async function () {
+      await ping();
     });
 
     function startWorker() {
@@ -243,13 +248,9 @@
       }
     }
 
-    requestNotificationPermission();
     updateDisplayedTags();
     updateDisplayedInterval();
-
-    window.onbeforeunload = function () {
-      stopWorker();
-    };
   </script>
 </body>
+
 </html>
