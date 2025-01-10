@@ -1,14 +1,19 @@
 let intervalId;
-let tags;
-let impliedTags;
+let tags = "";
+let impliedTags = "";
 let page = 1;
 
 self.onmessage = async function (e) {
   const { command, interval, options } = e.data;
 
   if (command === 'start') {
-    tags = options.tags;
-    impliedTags = options.impliedTags;
+    if (options && options.tags && options.impliedTags) {
+      tags = options.tags;
+      impliedTags = options.impliedTags;
+    } else {
+      console.error("Tags or impliedTags not provided in options.");
+      return;
+    }
 
     // Start the interval for sending 'ping' messages
     intervalId = setInterval(() => {
