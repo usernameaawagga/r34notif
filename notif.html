@@ -5,14 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Customizable Image Notifications</title>
   <style>
-    #intervalInput {
-      width: 60px;
-    }
+    body { font-family: sans-serif; line-height: 1.6; padding: 1em; }
+    input[type="text"], input[type="number"] { padding: 5px; }
+    button { padding: 5px 10px; cursor: pointer; }
     #lastImage {
       max-width: 100%;
       height: auto;
       max-height: 500px;
+      margin-top: 1em;
+      display: block;
     }
+    div { margin-bottom: 1em; }
   </style>
 </head>
 <body>
@@ -33,7 +36,7 @@
 
   <button id="forceImageButton">Force image</button>
 
-  <img id="lastImage" src="" alt="Last image will appear here" />
+  <img id="lastImage" src="" alt="Images will appear here" />
 
   <script>
     let notificationsEnabled = false;
@@ -43,7 +46,6 @@
     let worker;
     let interval = 10000;
     let isProcessing = false;
-    let timeoutId;
 
     function updateDisplayedTags() {
       document.getElementById('currentTags').innerText = tags.trim() ? tags : "None";
@@ -53,17 +55,14 @@
       document.getElementById('currentInterval').innerText = interval / 1000;
     }
 
-    function debounce(func, delay) {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(func, delay);
-    }
-
+    // This function is now only called by the button click.
     function updateTags() {
       const userTags = document.getElementById("tagInput").value.trim();
       tags = userTags || "-ai_generated score:>=10"; // Revert to default if empty
       images = []; // Clear existing images
       updateDisplayedTags();
       console.log("Tags updated to:", tags);
+      // If notifications are running, restart the worker with the new tags
       if (notificationsEnabled) {
           stopWorker();
           startWorker();
@@ -82,8 +81,8 @@
       }
     });
 
-    document.getElementById("updateTags").addEventListener("click", () => debounce(updateTags, 500));
-    document.getElementById("tagInput").addEventListener("input", () => debounce(updateTags, 500));
+    // The tag update function is now ONLY triggered by the button click.
+    document.getElementById("updateTags").addEventListener("click", updateTags);
 
     document.getElementById("intervalInput").addEventListener("keydown", function(event) {
       if (event.key === "Enter") {
@@ -133,7 +132,6 @@
 
     async function showImage() {
       if (isProcessing) return;
-      isProcessing = true;
 
       if (images.length === 0) {
         console.log("No images in queue, waiting for worker...");
@@ -141,11 +139,12 @@
         return;
       }
 
+      isProcessing = true;
       shuffle(images);
       const imgData = images.shift();
 
       if (!imgData || !imgData.file_url) {
-        console.log("Invalid image data received:", imgData);
+        console.log("Invalid image data in queue:", imgData);
         isProcessing = false;
         return;
       }
@@ -183,11 +182,12 @@
           worker.onmessage = function (e) {
             const { type, images: newImages, error } = e.data;
             if (type === 'addImages') {
+              const initialLoad = images.length === 0;
               images.push(...newImages);
-              console.log(`Added ${newImages.length} new images. Total: ${images.length}`);
-              if (!isProcessing && notificationsEnabled) {
-                  // If this is the first batch of images, show one immediately.
-                  if(images.length === newImages.length) showImage();
+              console.log(`Added ${newImages.length} new images. Total in queue: ${images.length}`);
+              // If this is the first batch of images and notifications are on, show one immediately.
+              if (initialLoad && notificationsEnabled) {
+                  showImage();
               }
             } else if (type === 'ping') {
                 showImage();
@@ -205,6 +205,9 @@
     function stopWorker() {
       if (worker) {
         worker.postMessage({ command: 'stop' });
+        // Optional: completely terminate the worker if it's no longer needed
+        // worker.terminate();
+        // worker = undefined;
       }
     }
 
