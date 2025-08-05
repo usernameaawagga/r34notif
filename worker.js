@@ -2,76 +2,76 @@ let intervalId;
 let tags = "";
 let impliedTags = "";
 let page = 1;
-let preloading = false;
+let isFetching = false; // Prevents multiple simultaneous fetches
 
-// This is the message handler for the worker. It correctly unpacks the data
-// sent from the updated notif.html file.
 self.onmessage = async function (e) {
   const { command, interval, tags: newTags, impliedTags: newImpliedTags } = e.data;
 
-  if (command === 'start') {
-    // Stop any previous activity
-    clearInterval(intervalId);
-    preloading = false;
+  switch (command) {
+    case 'start':
+      // Stop any previous activity
+      clearInterval(intervalId);
 
-    // Set new parameters
-    tags = newTags;
-    impliedTags = newImpliedTags;
-    page = 1; // Reset page number on start/restart
+      // Set new parameters
+      tags = newTags;
+      impliedTags = newImpliedTags;
+      page = 1; // Reset page number on start/restart
 
-    // Start the interval for sending 'ping' messages to the main thread
-    intervalId = setInterval(() => {
-      self.postMessage({ type: 'ping' });
-    }, interval);
+      // Start the interval for sending 'ping' messages to the main thread
+      intervalId = setInterval(() => {
+        self.postMessage({ type: 'ping' });
+      }, interval);
+      break;
 
-    // Begin preloading images
-    preloadImages();
-  } else if (command === 'stop') {
-    clearInterval(intervalId);
-    preloading = false; // This will cause the preloadImages loop to exit
+    case 'stop':
+      clearInterval(intervalId);
+      tags = "";
+      impliedTags = "";
+      page = 1;
+      break;
+
+    case 'getMoreImages':
+      if (!isFetching) {
+        await fetchAndSendImages();
+      }
+      break;
   }
 };
 
-async function preloadImages() {
-    preloading = true;
-    while(preloading) { // This loop will now terminate if preloading is set to false
-        try {
-            const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
-            const res = await fetch(apiUrl);
+async function fetchAndSendImages() {
+  if (!tags) {
+    self.postMessage({ type: 'error', error: 'Cannot fetch, tags are not set.' });
+    return;
+  }
+  
+  isFetching = true;
+  try {
+    const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=100&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
+    const res = await fetch(apiUrl);
 
-            if (!res.ok) {
-                throw new Error(`API request failed with status ${res.status}`);
-            }
-
-            const text = await res.text();
-            // Handle empty response, which can be valid if a page has no posts
-            if (!text || text.trim() === "[]") {
-                console.log(`Worker: Page ${page} was empty or end of results. Stopping preload.`);
-                preloading = false; // Stop if there are no more images
-                break;
-            }
-
-            const json = JSON.parse(text).filter(x => x.file_url && !x.file_url.endsWith('.mp4'));
-
-            if (json.length > 0) {
-                self.postMessage({ type: 'addImages', images: json });
-                page++;
-            } else {
-                console.log("Worker found no valid images on this page. Trying next.");
-                page++;
-            }
-            // Wait 5 seconds between fetches to avoid spamming the API
-            await delay(5000);
-        } catch (error) {
-            self.postMessage({ type: 'error', error: error.message });
-            console.error("Worker failed to preload images:", error);
-            // Wait longer after an error before retrying
-            await delay(15000);
-        }
+    if (!res.ok) {
+      throw new Error(`API request failed with status ${res.status}`);
     }
-    console.log("Worker has stopped preloading.");
-}
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+    const text = await res.text();
+    // An empty response or empty array means we've reached the end
+    if (!text || text.trim() === '[]') {
+      self.postMessage({ type: 'message', message: `No more images found for these tags. End of results at page ${page}.` });
+      // We don't increment the page number so subsequent requests for more will hit the same last page
+      return;
+    }
+
+    const json = JSON.parse(text).filter(x => x.file_url && !x.file_url.endsWith('.mp4'));
+
+    if (json.length > 0) {
+      self.postMessage({ type: 'addImages', images: json });
+      page++; // Only move to next page if we found images
+    } else {
+      self.postMessage({ type: 'message', message: `Page ${page} contained no valid images.` });
+    }
+  } catch (error) {
+    self.postMessage({ type: 'error', error: error.message });
+  } finally {
+    isFetching = false; // Allow new fetches
+  }
 }
