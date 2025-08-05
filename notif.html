@@ -5,17 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Customizable Image Notifications</title>
   <style>
-    body { font-family: sans-serif; line-height: 1.6; padding: 1em; }
+    body { font-family: sans-serif; line-height: 1.6; padding: 1em; max-width: 800px; margin: auto; }
     input[type="text"], input[type="number"] { padding: 5px; }
     button { padding: 5px 10px; cursor: pointer; }
     #lastImage {
       max-width: 100%;
       height: auto;
-      max-height: 500px;
+      max-height: 600px;
       margin-top: 1em;
       display: block;
+      border: 1px solid #ccc;
     }
     div { margin-bottom: 1em; }
+    p { margin: 0.5em 0; }
   </style>
 </head>
 <body>
@@ -36,16 +38,17 @@
 
   <button id="forceImageButton">Force image</button>
 
-  <img id="lastImage" src="" alt="Images will appear here" />
+  <img id="lastImage" src="" alt="Images will appear here once the queue is loaded." />
 
   <script>
     let notificationsEnabled = false;
-    let tags = "-ai_generated score:>=10"; // Default tags
+    let tags = "-ai_generated score:>=10";
     const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
     let images = [];
     let worker;
     let interval = 10000;
     let isProcessing = false;
+    const IMAGE_BUFFER_THRESHOLD = 50;
 
     function updateDisplayedTags() {
       document.getElementById('currentTags').innerText = tags.trim() ? tags : "None";
@@ -55,17 +58,17 @@
       document.getElementById('currentInterval').innerText = interval / 1000;
     }
 
-    // This function is now only called by the button click.
     function updateTags() {
       const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags || "-ai_generated score:>=10"; // Revert to default if empty
-      images = []; // Clear existing images
+      tags = userTags || "-ai_generated score:>=10";
+      images = [];
       updateDisplayedTags();
       console.log("Tags updated to:", tags);
-      // If notifications are running, restart the worker with the new tags
-      if (notificationsEnabled) {
+      if (worker) {
           stopWorker();
-          startWorker();
+          if (notificationsEnabled) {
+              startWorker();
+          }
       }
     }
 
@@ -81,7 +84,6 @@
       }
     });
 
-    // The tag update function is now ONLY triggered by the button click.
     document.getElementById("updateTags").addEventListener("click", updateTags);
 
     document.getElementById("intervalInput").addEventListener("keydown", function(event) {
@@ -114,46 +116,40 @@
       }
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        console.log("Notification permission denied.");
         notificationsEnabled = false;
         document.getElementById("toggleNotifications").innerText = 'Enable';
         return false;
       }
-      console.log("Notification permission granted.");
       return true;
-    }
-
-    function shuffle(array) {
-      for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-      }
     }
 
     async function showImage() {
       if (isProcessing) return;
 
       if (images.length === 0) {
-        console.log("No images in queue, waiting for worker...");
-        isProcessing = false;
+        console.log("No images in queue. Requesting more from worker...");
+        if (worker) worker.postMessage({ command: 'getMoreImages' });
         return;
       }
-
       isProcessing = true;
-      shuffle(images);
+
       const imgData = images.shift();
 
-      if (!imgData || !imgData.file_url) {
-        console.log("Invalid image data in queue:", imgData);
-        isProcessing = false;
-        return;
+      if (images.length < IMAGE_BUFFER_THRESHOLD && worker) {
+          console.log(`Image queue low (${images.length}). Requesting more.`);
+          worker.postMessage({ command: 'getMoreImages' });
       }
 
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
+      
+      // Use a CORS proxy to fetch the image data.
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(imgUrl)}`;
 
       try {
-        const res = await fetch(imgUrl);
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error(`Proxy fetch failed with status ${res.status}`);
+        
         const blob = await res.blob();
         const imageURL = URL.createObjectURL(blob);
 
@@ -168,6 +164,8 @@
         }
       } catch (error) {
           console.error("Error fetching or displaying image:", error);
+          // Put the failed image back in the queue to try later
+          images.unshift(imgData);
       } finally {
         isProcessing = false;
       }
@@ -177,45 +175,49 @@
 
     function startWorker() {
       if (typeof Worker !== "undefined") {
-        if (!worker) {
-          worker = new Worker('worker.js');
-          worker.onmessage = function (e) {
-            const { type, images: newImages, error } = e.data;
-            if (type === 'addImages') {
-              const initialLoad = images.length === 0;
-              images.push(...newImages);
-              console.log(`Added ${newImages.length} new images. Total in queue: ${images.length}`);
-              // If this is the first batch of images and notifications are on, show one immediately.
-              if (initialLoad && notificationsEnabled) {
-                  showImage();
-              }
-            } else if (type === 'ping') {
+        if (worker) stopWorker(); // Ensure no old worker is running
+
+        worker = new Worker('worker.js');
+        worker.onmessage = function (e) {
+          const { type, images: newImages, error, message } = e.data;
+          if (type === 'addImages') {
+            const initialLoad = images.length === 0;
+            // Filter out any duplicates already in the queue
+            const uniqueNewImages = newImages.filter(newItem => !images.some(existingItem => existingItem.id === newItem.id));
+            images.push(...uniqueNewImages);
+            console.log(`Added ${uniqueNewImages.length} new images. Total in queue: ${images.length}`);
+            if (initialLoad && notificationsEnabled) {
                 showImage();
-            } else if (type === 'error') {
-                console.error("Worker error:", error);
             }
-          };
-        }
+          } else if (type === 'ping') {
+              showImage();
+          } else if (type === 'error') {
+              console.error("Worker error:", error);
+          } else if (type === 'message') {
+              console.log("Worker message:", message);
+          }
+        };
+
         worker.postMessage({ command: 'start', interval, tags, impliedTags });
+        // Immediately ask for the first batch of images
+        worker.postMessage({ command: 'getMoreImages' });
       } else {
-        console.log("Web Workers are not supported in this browser.");
+        alert("Web Workers are not supported in this browser.");
       }
     }
 
     function stopWorker() {
       if (worker) {
         worker.postMessage({ command: 'stop' });
-        // Optional: completely terminate the worker if it's no longer needed
-        // worker.terminate();
-        // worker = undefined;
+        worker.terminate();
+        worker = undefined;
+        console.log("Worker stopped and terminated.");
       }
     }
 
     // Initial setup
-    requestNotificationPermission();
     updateDisplayedTags();
     updateDisplayedInterval();
-
     window.onbeforeunload = stopWorker;
   </script>
 </body>
