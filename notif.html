@@ -42,12 +42,12 @@
     const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
     let images = [];
     let page = 1;
-    let worker;
     let interval = 10000;
     let retries = 0;
     const maxRetries = 5;
     let isProcessing = false;
     let timeoutId;
+    let intervalId = null; // Instead of worker
 
     function updateDisplayedTags() {
       const displayTags = tags.trim() ? `${tags}` : "None";
@@ -64,11 +64,9 @@
       timeoutId = setTimeout(func, delay);
     }
 
-    // Update Tags function with debouncing
     function updateTags() {
       const userTags = document.getElementById("tagInput").value.trim();
-      // Update tags with the user input, if there's anything, or leave it as an empty string
-      tags = userTags === "" ? "" : userTags; // Don't set default tags unless explicitly entered by the user
+      tags = userTags === "" ? "" : userTags;
       images = [];
       page = 1;
       updateDisplayedTags();
@@ -79,9 +77,9 @@
       notificationsEnabled = !notificationsEnabled;
       this.innerText = notificationsEnabled ? 'Disable' : 'Enable';
       if (notificationsEnabled) {
-        startWorker();
+        startInterval();
       } else {
-        stopWorker();
+        stopInterval();
       }
     });
 
@@ -107,8 +105,8 @@
         console.log(`Interval updated to: ${userInterval} seconds`);
         updateDisplayedInterval();
         if (notificationsEnabled) {
-          stopWorker();
-          startWorker();
+          stopInterval();
+          startInterval();
         }
       } else {
         alert("Please enter a valid interval in seconds.");
@@ -203,7 +201,6 @@
       const icon = await res.blob();
       const imageURL = URL.createObjectURL(icon);
 
-      // Send notification even if notifications are not enabled (but permission is granted)
       if (Notification.permission === "granted") {
         const notification = new Notification('', { image: imageURL });
         notification.onclick = function () {
@@ -216,30 +213,22 @@
       isProcessing = false;
     }
 
-    // Force image button click handler (works even if interval is not enabled)
+    // Force image button
     document.getElementById('forceImageButton').addEventListener('click', async function() {
-      await ping(); // Call ping directly to fetch an image and trigger a notification
+      await ping();
     });
 
-    function startWorker() {
-      if (typeof Worker !== "undefined") {
-        if (worker == undefined) {
-          worker = new Worker('worker.js');
-        }
-        worker.postMessage({ command: 'start', interval });
-        worker.onmessage = function (e) {
-          if (e.data === 'ping') {
-            ping();
-          }
-        };
-      } else {
-        console.log("Web Workers are not supported in this browser.");
-      }
+    function startInterval() {
+      stopInterval();
+      intervalId = setInterval(ping, interval);
+      console.log("Interval started:", interval);
     }
 
-    function stopWorker() {
-      if (worker) {
-        worker.postMessage({ command: 'stop' });
+    function stopInterval() {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+        console.log("Interval stopped.");
       }
     }
 
@@ -248,7 +237,7 @@
     updateDisplayedInterval();
 
     window.onbeforeunload = function () {
-      stopWorker();
+      stopInterval();
     };
   </script>
 </body>
