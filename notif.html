@@ -198,7 +198,7 @@
       }
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
-      const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(imgUrl)}`;
+      const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
       const res = await fetch(url);
       const icon = await res.blob();
       const imageURL = URL.createObjectURL(icon);
