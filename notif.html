@@ -31,14 +31,13 @@
     <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
-  <!-- Force image button -->
   <button id="forceImageButton">Force image</button>
 
   <img id="lastImage" src="" alt="Last image will appear here" />
 
   <script>
     let notificationsEnabled = false;
-    let tags = ""; // Initially empty
+    let tags = ""; 
     const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
     let images = [];
     let page = 1;
@@ -47,7 +46,7 @@
     const maxRetries = 5;
     let isProcessing = false;
     let timeoutId;
-    let intervalId = null; // Instead of worker
+    let intervalId = null;
 
     function updateDisplayedTags() {
       const displayTags = tags.trim() ? `${tags}` : "None";
@@ -58,7 +57,6 @@
       document.getElementById('currentInterval').innerText = interval / 1000;
     }
 
-    // Debounced function to limit rapid tag updates
     function debounce(func, delay) {
       clearTimeout(timeoutId);
       timeoutId = setTimeout(func, delay);
@@ -73,6 +71,10 @@
       console.log("Tags updated to:", tags);
     }
 
+    document.getElementById("updateTags").addEventListener("click", function () {
+      debounce(updateTags, 300);
+    });
+
     document.getElementById("toggleNotifications").addEventListener("click", function () {
       notificationsEnabled = !notificationsEnabled;
       this.innerText = notificationsEnabled ? 'Disable' : 'Enable';
@@ -81,14 +83,6 @@
       } else {
         stopInterval();
       }
-    });
-
-    document.getElementById("updateTags").addEventListener("click", function () {
-      debounce(updateTags, 500);
-    });
-
-    document.getElementById("tagInput").addEventListener("input", function() {
-      debounce(updateTags, 500);
     });
 
     document.getElementById("intervalInput").addEventListener("keydown", function(event) {
@@ -117,8 +111,6 @@
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
         console.log("Notification permission denied.");
-        notificationsEnabled = false;
-        document.getElementById("toggleNotifications").innerText = 'Enable';
       } else {
         console.log("Notification permission granted.");
       }
@@ -144,26 +136,22 @@
         const text = await res.text();
         let json;
         if (text.trim() === "") {
-          console.error("Empty response received from the API.");
           if (retries < maxRetries) {
             retries++;
             page++;
             return await fetchImages();
           } else {
-            console.error("Max retries reached.");
             return;
           }
         }
         try {
           json = JSON.parse(text);
         } catch (e) {
-          console.error("Failed to parse JSON response:", e);
-          console.error("Response text:", text);
+          console.error("Failed to parse JSON:", e);
           return;
         }
         json = json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
         if (json.length === 0) {
-          console.log("No images found with the current tags. Retrying...");
           retries++;
           page++;
           return await fetchImages();
@@ -179,21 +167,24 @@
     async function ping() {
       if (isProcessing) return;
       isProcessing = true;
+
       if (images.length < 100) {
         await fetchImages();
       }
+
       if (images.length === 0) {
         console.log("No images to display.");
         isProcessing = false;
         return;
       }
+
       shuffle(images);
       const imgData = images.shift();
       if (!imgData || !imgData.file_url) {
-        console.log("Invalid image data received:", imgData);
         isProcessing = false;
         return;
       }
+
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
       const url = 'https://corsproxy.io/?' + encodeURIComponent(imgUrl);
@@ -213,9 +204,8 @@
       isProcessing = false;
     }
 
-    // Force image button
     document.getElementById('forceImageButton').addEventListener('click', async function() {
-      await ping();
+      await ping(); // Works independently of notifications being enabled
     });
 
     function startInterval() {
