@@ -5,19 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Customizable Image Notifications</title>
   <style>
-    body { font-family: sans-serif; line-height: 1.6; padding: 1em; max-width: 800px; margin: auto; }
-    input[type="text"], input[type="number"] { padding: 5px; }
-    button { padding: 5px 10px; cursor: pointer; }
+    #intervalInput {
+      width: 60px;
+    }
     #lastImage {
       max-width: 100%;
       height: auto;
-      max-height: 600px;
-      margin-top: 1em;
-      display: block;
-      border: 1px solid #ccc;
+      max-height: 500px;
     }
-    div { margin-bottom: 1em; }
-    p { margin: 0.5em 0; }
   </style>
 </head>
 <body>
@@ -36,55 +31,67 @@
     <p>Current Interval: <span id="currentInterval">10</span> seconds</p>
   </div>
 
+  <!-- Force image button -->
   <button id="forceImageButton">Force image</button>
 
-  <img id="lastImage" src="" alt="Images will appear here once the queue is loaded." />
+  <img id="lastImage" src="" alt="Last image will appear here" />
 
   <script>
     let notificationsEnabled = false;
-    let tags = "-ai_generated score:>=10";
+    let tags = ""; // Initially empty
     const impliedTags = "-fart* -scat -watersports* -diaper* -pee* -poop -multi*breast* -feces* sort:random";
     let images = [];
+    let page = 1;
     let worker;
     let interval = 10000;
+    let retries = 0;
+    const maxRetries = 5;
     let isProcessing = false;
-    const IMAGE_BUFFER_THRESHOLD = 50;
+    let timeoutId;
 
     function updateDisplayedTags() {
-      document.getElementById('currentTags').innerText = tags.trim() ? tags : "None";
+      const displayTags = tags.trim() ? `${tags}` : "None";
+      document.getElementById('currentTags').innerText = displayTags;
     }
 
     function updateDisplayedInterval() {
       document.getElementById('currentInterval').innerText = interval / 1000;
     }
 
+    // Debounced function to limit rapid tag updates
+    function debounce(func, delay) {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(func, delay);
+    }
+
+    // Update Tags function with debouncing
     function updateTags() {
       const userTags = document.getElementById("tagInput").value.trim();
-      tags = userTags || "-ai_generated score:>=10";
+      // Update tags with the user input, if there's anything, or leave it as an empty string
+      tags = userTags === "" ? "" : userTags; // Don't set default tags unless explicitly entered by the user
       images = [];
+      page = 1;
       updateDisplayedTags();
       console.log("Tags updated to:", tags);
-      if (worker) {
-          stopWorker();
-          if (notificationsEnabled) {
-              startWorker();
-          }
-      }
     }
 
     document.getElementById("toggleNotifications").addEventListener("click", function () {
       notificationsEnabled = !notificationsEnabled;
       this.innerText = notificationsEnabled ? 'Disable' : 'Enable';
       if (notificationsEnabled) {
-        requestNotificationPermission().then(granted => {
-            if(granted) startWorker();
-        });
+        startWorker();
       } else {
         stopWorker();
       }
     });
 
-    document.getElementById("updateTags").addEventListener("click", updateTags);
+    document.getElementById("updateTags").addEventListener("click", function () {
+      debounce(updateTags, 500);
+    });
+
+    document.getElementById("tagInput").addEventListener("input", function() {
+      debounce(updateTags, 500);
+    });
 
     document.getElementById("intervalInput").addEventListener("keydown", function(event) {
       if (event.key === "Enter") {
@@ -109,116 +116,140 @@
     });
 
     async function requestNotificationPermission() {
-      if (Notification.permission === "granted") return true;
-      if (Notification.permission === "denied") {
-          alert("Notification permission has been denied. Please enable it in your browser settings.");
-          return false;
-      }
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
+        console.log("Notification permission denied.");
         notificationsEnabled = false;
         document.getElementById("toggleNotifications").innerText = 'Enable';
-        return false;
+      } else {
+        console.log("Notification permission granted.");
       }
-      return true;
     }
 
-    async function showImage() {
-      if (isProcessing) return;
+    function shuffle(array) {
+      let currentIndex = array.length;
+      while (currentIndex !== 0) {
+        let randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+        [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+      }
+    }
 
+    async function fetchImages() {
+      try {
+        const apiUrl = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&tags=${encodeURIComponent(tags)}+${encodeURIComponent(impliedTags)}&pid=${page}`;
+        const res = await fetch(apiUrl);
+        if (!res.ok) {
+          console.error(`Failed to fetch images. HTTP status: ${res.status}`);
+          return;
+        }
+        const text = await res.text();
+        let json;
+        if (text.trim() === "") {
+          console.error("Empty response received from the API.");
+          if (retries < maxRetries) {
+            retries++;
+            page++;
+            return await fetchImages();
+          } else {
+            console.error("Max retries reached.");
+            return;
+          }
+        }
+        try {
+          json = JSON.parse(text);
+        } catch (e) {
+          console.error("Failed to parse JSON response:", e);
+          console.error("Response text:", text);
+          return;
+        }
+        json = json.filter((x) => x.file_url && !x.file_url.includes('mp4'));
+        if (json.length === 0) {
+          console.log("No images found with the current tags. Retrying...");
+          retries++;
+          page++;
+          return await fetchImages();
+        }
+        retries = 0;
+        images.push(...json);
+        page++;
+      } catch (error) {
+        console.error("Error fetching images:", error);
+      }
+    }
+
+    async function ping() {
+      if (isProcessing) return;
+      isProcessing = true;
+      if (images.length < 100) {
+        await fetchImages();
+      }
       if (images.length === 0) {
-        console.log("No images in queue. Requesting more from worker...");
-        if (worker) worker.postMessage({ command: 'getMoreImages' });
+        console.log("No images to display.");
+        isProcessing = false;
         return;
       }
-      isProcessing = true;
-
+      shuffle(images);
       const imgData = images.shift();
-
-      if (images.length < IMAGE_BUFFER_THRESHOLD && worker) {
-          console.log(`Image queue low (${images.length}). Requesting more.`);
-          worker.postMessage({ command: 'getMoreImages' });
+      if (!imgData || !imgData.file_url) {
+        console.log("Invalid image data received:", imgData);
+        isProcessing = false;
+        return;
       }
-
       const imgUrl = imgData.file_url;
       const postUrl = `https://rule34.xxx/index.php?page=post&s=view&id=${imgData.id}`;
-      
-      // Use a CORS proxy to fetch the image data.
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(imgUrl)}`;
+      const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(imgUrl)}`;
+      const res = await fetch(url);
+      const icon = await res.blob();
+      const imageURL = URL.createObjectURL(icon);
 
-      try {
-        const res = await fetch(proxyUrl);
-        if (!res.ok) throw new Error(`Proxy fetch failed with status ${res.status}`);
-        
-        const blob = await res.blob();
-        const imageURL = URL.createObjectURL(blob);
-
-        document.getElementById('lastImage').src = imageURL;
-
-        if (Notification.permission === "granted") {
-          const notification = new Notification('New Image', { image: imageURL, silent: true });
-          notification.onclick = function () {
-            window.open(postUrl, '_blank');
-            notification.close();
-          };
-        }
-      } catch (error) {
-          console.error("Error fetching or displaying image:", error);
-          // Put the failed image back in the queue to try later
-          images.unshift(imgData);
-      } finally {
-        isProcessing = false;
+      // Send notification even if notifications are not enabled (but permission is granted)
+      if (Notification.permission === "granted") {
+        const notification = new Notification('', { image: imageURL });
+        notification.onclick = function () {
+          window.open(postUrl, '_blank');
+          notification.close();
+        };
       }
+
+      document.getElementById('lastImage').src = imageURL;
+      isProcessing = false;
     }
 
-    document.getElementById('forceImageButton').addEventListener('click', showImage);
+    // Force image button click handler (works even if interval is not enabled)
+    document.getElementById('forceImageButton').addEventListener('click', async function() {
+      await ping(); // Call ping directly to fetch an image and trigger a notification
+    });
 
     function startWorker() {
       if (typeof Worker !== "undefined") {
-        if (worker) stopWorker(); // Ensure no old worker is running
-
-        worker = new Worker('worker.js');
+        if (worker == undefined) {
+          worker = new Worker('worker.js');
+        }
+        worker.postMessage({ command: 'start', interval });
         worker.onmessage = function (e) {
-          const { type, images: newImages, error, message } = e.data;
-          if (type === 'addImages') {
-            const initialLoad = images.length === 0;
-            // Filter out any duplicates already in the queue
-            const uniqueNewImages = newImages.filter(newItem => !images.some(existingItem => existingItem.id === newItem.id));
-            images.push(...uniqueNewImages);
-            console.log(`Added ${uniqueNewImages.length} new images. Total in queue: ${images.length}`);
-            if (initialLoad && notificationsEnabled) {
-                showImage();
-            }
-          } else if (type === 'ping') {
-              showImage();
-          } else if (type === 'error') {
-              console.error("Worker error:", error);
-          } else if (type === 'message') {
-              console.log("Worker message:", message);
+          if (e.data === 'ping') {
+            ping();
           }
         };
-
-        worker.postMessage({ command: 'start', interval, tags, impliedTags });
-        // Immediately ask for the first batch of images
-        worker.postMessage({ command: 'getMoreImages' });
       } else {
-        alert("Web Workers are not supported in this browser.");
+        console.log("Web Workers are not supported in this browser.");
       }
     }
 
     function stopWorker() {
       if (worker) {
         worker.postMessage({ command: 'stop' });
-        worker.terminate();
-        worker = undefined;
-        console.log("Worker stopped and terminated.");
       }
     }
 
-    // Initial setup
+    requestNotificationPermission();
     updateDisplayedTags();
     updateDisplayedInterval();
-    window.onbeforeunload = stopWorker;
+
+    window.onbeforeunload = function () {
+      stopWorker();
+    };
   </script>
 </body>
 </html>
